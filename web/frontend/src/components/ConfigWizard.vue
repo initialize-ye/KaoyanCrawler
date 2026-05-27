@@ -110,7 +110,10 @@
                  :class="{ selected: selectedTableIndex === table.index }"
                  @click="selectTable(table)">
               <div class="table-header">
-                <el-tag>表格 {{ table.index + 1 }}</el-tag>
+                <el-tag :type="table.type === 'table' ? '' : 'warning'">
+                  {{ table.type === 'table' ? 'HTML表格' : table.type === 'div-table' ? 'DIV布局' : '文本表格' }}
+                  {{ table.index + 1 }}
+                </el-tag>
                 <span style="margin-left: 8px">{{ table.row_count }} 行</span>
                 <el-tag v-if="selectedTableIndex === table.index" type="success" style="margin-left: auto">已选择</el-tag>
               </div>
@@ -119,6 +122,41 @@
                   <template #default="{ row }">{{ row[hi] || '-' }}</template>
                 </el-table-column>
               </el-table>
+            </div>
+          </div>
+
+          <!-- 页面内容预览（当没有检测到表格时显示） -->
+          <div v-if="!previewTables.length && pageInfo" style="margin: 16px 0">
+            <el-alert type="warning" :closable="false" style="margin-bottom: 12px">
+              <template #title>
+                未检测到标准表格。以下是页面内容预览，请确认数据是否在此页面：
+              </template>
+            </el-alert>
+
+            <el-card shadow="never" style="max-height: 300px; overflow-y: auto">
+              <div v-if="pageInfo.title" style="font-weight: 600; margin-bottom: 8px">{{ pageInfo.title }}</div>
+              <div v-for="(line, i) in pageInfo.sample_lines" :key="i" class="content-line">{{ line }}</div>
+            </el-card>
+
+            <!-- PDF下载链接 -->
+            <div v-if="pageInfo.pdf_links?.length" style="margin-top: 12px">
+              <h4>发现PDF链接：</h4>
+              <div v-for="(pdf, i) in pageInfo.pdf_links" :key="i" class="link-item"
+                   :class="{ selected: newSource.url === pdf.url }"
+                   @click="newSource.url = pdf.url; newSource.format = 'pdf'">
+                <span>{{ pdf.text }}</span>
+                <el-tag size="small" type="warning">PDF</el-tag>
+              </div>
+            </div>
+
+            <!-- 手动输入CSS选择器 -->
+            <div style="margin-top: 12px">
+              <el-input v-model="manualSelector" placeholder="手动输入CSS选择器（如 div.list tr）">
+                <template #prepend>选择器</template>
+                <template #append>
+                  <el-button @click="applyManualSelector">应用</el-button>
+                </template>
+              </el-input>
             </div>
           </div>
 
@@ -238,12 +276,15 @@ const newSource = ref({
   type: 'admission_list',
   sourceType: 'url',
   url: '',
+  format: 'html',
 })
 
 const discoveredLinks = ref([])
 const previewTables = ref([])
 const selectedTableIndex = ref(-1)
 const columnMapping = ref([])
+const pageInfo = ref(null)
+const manualSelector = ref('')
 
 watch(() => form.value.name, (newName) => {
   if (newName) form.value.code = generateCode(newName)
@@ -265,17 +306,41 @@ const scanUrl = async () => {
   previewTables.value = []
   selectedTableIndex.value = -1
   columnMapping.value = []
+  pageInfo.value = null
 
   try {
     const { data } = await axios.get('/api/preview-tables', { params: { url: newSource.value.url } })
     previewTables.value = data.tables || []
+    pageInfo.value = data.page_info || null
+
     if (previewTables.value.length === 1) {
       selectTable(previewTables.value[0])
+    }
+
+    // 如果发现PDF链接，自动设置格式
+    if (pageInfo.value?.pdf_links?.length && !previewTables.value.length) {
+      newSource.value.format = 'pdf'
     }
   } catch (e) {
     ElMessage.error('扫描失败: ' + e.message)
   }
   scanning.value = false
+}
+
+// 应用手动CSS选择器
+const applyManualSelector = () => {
+  if (!manualSelector.value) return
+  // 创建一个虚拟的表格配置
+  previewTables.value = [{
+    index: 0,
+    type: 'manual',
+    headers: ['列1', '列2', '列3', '列4', '列5'],
+    row_count: 0,
+    sample_rows: [],
+    selector: manualSelector.value,
+  }]
+  selectTable(previewTables.value[0])
+  ElMessage.success('已应用选择器: ' + manualSelector.value)
 }
 
 // 从研究生院发现链接
@@ -341,6 +406,7 @@ const confirmAddSource = () => {
     name: newSource.value.name || `${form.value.name} ${newSource.value.type === 'admission_list' ? '录取名单' : '招生目录'}`,
     type: newSource.value.type,
     url: newSource.value.url,
+    format: newSource.value.format || 'html',
     tableSelector: previewTables.value[selectedTableIndex.value]?.selector || '',
     columnCount: Object.keys(columns).length,
     columns,
@@ -348,11 +414,13 @@ const confirmAddSource = () => {
 
   // 重置
   showAddSource.value = false
-  newSource.value = { name: '', type: 'admission_list', sourceType: 'url', url: '' }
+  newSource.value = { name: '', type: 'admission_list', sourceType: 'url', url: '', format: 'html' }
   discoveredLinks.value = []
   previewTables.value = []
   selectedTableIndex.value = -1
   columnMapping.value = []
+  pageInfo.value = null
+  manualSelector.value = ''
 
   ElMessage.success('数据源已添加')
 }
@@ -365,7 +433,7 @@ const saveConfig = async () => {
       name: s.name,
       type: s.type,
       url: s.url,
-      format: 'html',
+      format: s.format || 'html',
       selectors: {
         table: s.tableSelector || 'table',
         row: 'tr',
@@ -499,5 +567,13 @@ h4 {
   font-size: 12px;
   color: #909399;
   margin-top: 4px;
+}
+
+.content-line {
+  font-size: 13px;
+  line-height: 1.8;
+  color: #606266;
+  border-bottom: 1px dashed #eee;
+  padding: 2px 0;
 }
 </style>

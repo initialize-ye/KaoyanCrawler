@@ -115,7 +115,8 @@ async def preview_tables(url: str = Query(..., description="页面URL")):
             content = resp.content
 
         tables = html_parser.preview_tables(content)
-        return {"url": url, "tables": tables}
+        page_info = html_parser.preview_page_content(content)
+        return {"url": url, "tables": tables, "page_info": page_info}
     except Exception as e:
         return {"url": url, "tables": [], "error": str(e)}
 
