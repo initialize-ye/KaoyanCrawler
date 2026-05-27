@@ -307,3 +307,65 @@ async def ai_status():
         "provider": extractor.provider if extractor else None,
         "message": "AI功能可用" if extractor else "请设置环境变量 ANTHROPIC_API_KEY 或 DEEPSEEK_API_KEY",
     }
+
+
+# ========== 一键采集 API ==========
+
+class AutoCrawlRequest(BaseModel):
+    university: str
+    year: int = 2025
+
+
+@app.post("/api/auto-crawl")
+async def auto_crawl(req: AutoCrawlRequest):
+    """一键采集：只输入学校名称，自动完成全流程。"""
+    from src.crawler.auto_crawler import AutoCrawler
+
+    extractor = get_ai_extractor()
+    crawler = AutoCrawler(ai_extractor=extractor)
+
+    result = await crawler.crawl(req.university, req.year)
+
+    # 如果有结果，保存到数据库
+    if result.get("results"):
+        db = get_db()
+        await db.init()
+
+        for extracted in result["results"]:
+            records = []
+            for r in extracted.get("records", []):
+                try:
+                    record = AdmissionRecord(
+                        university=req.university,
+                        year=extracted.get("year", req.year),
+                        list_type=ListType(extracted.get("list_type", "录取名单")),
+                        exam_id=str(r.get("exam_id", "")),
+                        name=str(r.get("name", "")),
+                        major=str(r.get("major", "")),
+                        initial_score=_to_float(r.get("initial_score")),
+                        retest_score=_to_float(r.get("retest_score")),
+                        total_score=_to_float(r.get("total_score")),
+                        admission_status=r.get("admission_status"),
+                        source_url=extracted.get("source_url", ""),
+                    )
+                    records.append(record)
+                except Exception as e:
+                    logger.warning(f"记录解析失败: {e}")
+
+            if records:
+                await db.insert_admission_records(records)
+                extracted["saved_count"] = len(records)
+
+    return result
+
+
+@app.get("/api/grad-schools")
+async def get_grad_schools():
+    """获取所有已知的研究生院官网列表。"""
+    from src.crawler.auto_crawler import GRAD_SCHOOL_URLS
+    return {
+        "schools": [
+            {"name": name, "url": url}
+            for name, url in GRAD_SCHOOL_URLS.items()
+        ]
+    }

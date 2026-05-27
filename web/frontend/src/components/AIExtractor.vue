@@ -6,49 +6,80 @@
       </template>
     </el-alert>
 
-    <el-form :model="form" label-width="100px">
-      <el-form-item label="学校名称" required>
-        <el-input v-model="form.university" placeholder="如：清华大学" />
-      </el-form-item>
-      <el-form-item label="页面URL" required>
-        <el-input v-model="form.url" placeholder="粘贴包含名单的页面URL">
-          <template #append>
-            <el-button @click="pasteFromClipboard">粘贴</el-button>
-          </template>
-        </el-input>
-      </el-form-item>
-      <el-form-item label="提取类型">
-        <el-radio-group v-model="form.extract_type">
-          <el-radio value="admission_list">复试/录取名单</el-radio>
-          <el-radio value="program_catalog">招生专业目录</el-radio>
-        </el-radio-group>
-      </el-form-item>
-    </el-form>
+    <div class="simple-form">
+      <p class="form-desc">输入学校名称，AI自动搜索官网、找到名单页面、提取数据</p>
+      <el-input
+        v-model="university"
+        placeholder="输入学校名称，如：清华大学"
+        size="large"
+        clearable
+        @keyup.enter="startCrawl"
+      >
+        <template #prepend>学校名称</template>
+      </el-input>
 
-    <el-button type="primary" @click="startExtract" :loading="extracting" :disabled="!canExtract"
-               style="width: 100%; margin-top: 16px" size="large">
-      {{ extracting ? 'AI正在分析页面...' : '开始智能提取' }}
-    </el-button>
+      <el-select v-model="year" style="margin-top: 12px; width: 200px">
+        <el-option :value="2025" label="2025年" />
+        <el-option :value="2024" label="2024年" />
+        <el-option :value="2023" label="2023年" />
+      </el-select>
 
-    <!-- 提取结果 -->
+      <el-button type="primary" @click="startCrawl" :loading="crawling" :disabled="!canStart"
+                 style="width: 100%; margin-top: 20px" size="large">
+        {{ crawling ? 'AI正在自动采集...' : '开始一键采集' }}
+      </el-button>
+    </div>
+
+    <!-- 采集进度 -->
+    <div v-if="steps.length" style="margin-top: 20px">
+      <el-steps direction="vertical" :active="steps.length - 1" space="30px">
+        <el-step v-for="(step, i) in steps" :key="i" :title="step" status="process" />
+      </el-steps>
+    </div>
+
+    <!-- 采集结果 -->
     <div v-if="result" style="margin-top: 20px">
       <el-alert v-if="result.success" type="success" :closable="false">
         <template #title>
-          提取成功！共获取 {{ result.count }} 条{{ result.list_type || '' }}数据（{{ result.year }}年）
+          采集成功！共获取 {{ totalRecords }} 条数据
         </template>
       </el-alert>
 
       <el-alert v-else type="error" :closable="false">
-        <template #title>{{ result.message || result.error || '提取失败' }}</template>
+        <template #title>{{ result.errors?.[0] || '采集失败' }}</template>
       </el-alert>
 
-      <!-- 示例数据 -->
-      <div v-if="result.sample?.length" style="margin-top: 16px">
-        <h4>数据预览：</h4>
-        <el-table :data="result.sample" border size="small" style="margin-top: 8px">
-          <el-table-column v-for="key in Object.keys(result.sample[0])" :key="key"
-                          :prop="key" :label="key" min-width="100" show-overflow-tooltip />
-        </el-table>
+      <!-- 错误信息 -->
+      <div v-if="result.errors?.length" style="margin-top: 12px">
+        <el-collapse>
+          <el-collapse-item title="错误详情" name="errors">
+            <p v-for="(err, i) in result.errors" :key="i" class="error-line">{{ err }}</p>
+          </el-collapse-item>
+        </el-collapse>
+      </div>
+
+      <!-- 数据预览 -->
+      <div v-if="result.results?.length" style="margin-top: 16px">
+        <h4>提取的数据：</h4>
+        <div v-for="(res, i) in result.results" :key="i" style="margin-top: 12px">
+          <el-card shadow="never">
+            <template #header>
+              <div style="display: flex; justify-content: space-between; align-items: center">
+                <span>{{ res.list_type }} ({{ res.year }}年)</span>
+                <el-tag type="success">{{ res.saved_count || res.count }} 条</el-tag>
+              </div>
+            </template>
+            <p style="font-size: 13px; color: #909399">来源: {{ res.source_text }}</p>
+            <el-table v-if="res.sample?.length" :data="res.sample" border size="small" style="margin-top: 8px" max-height="200">
+              <el-table-column prop="name" label="姓名" width="80" />
+              <el-table-column prop="major" label="专业" min-width="150" show-overflow-tooltip />
+              <el-table-column prop="exam_id" label="考生编号" width="130" />
+              <el-table-column prop="initial_score" label="初试" width="70" />
+              <el-table-column prop="retest_score" label="复试" width="70" />
+              <el-table-column prop="total_score" label="总分" width="70" />
+            </el-table>
+          </el-card>
+        </div>
       </div>
     </div>
   </el-dialog>
@@ -60,19 +91,19 @@ import axios from 'axios'
 import { ElMessage } from 'element-plus'
 
 const visible = ref(false)
-const extracting = ref(false)
+const crawling = ref(false)
 const aiAvailable = ref(false)
 
-const form = ref({
-  university: '',
-  url: '',
-  extract_type: 'admission_list',
-})
-
+const university = ref('')
+const year = ref(2025)
+const steps = ref([])
 const result = ref(null)
 
-const canExtract = computed(() => {
-  return form.value.university && form.value.url && aiAvailable.value
+const canStart = computed(() => university.value.trim() && aiAvailable.value)
+
+const totalRecords = computed(() => {
+  if (!result.value?.results) return 0
+  return result.value.results.reduce((sum, r) => sum + (r.saved_count || r.count || 0), 0)
 })
 
 onMounted(async () => {
@@ -84,50 +115,66 @@ onMounted(async () => {
   }
 })
 
-const pasteFromClipboard = async () => {
-  try {
-    const text = await navigator.clipboard.readText()
-    form.value.url = text
-  } catch (e) {
-    ElMessage.warning('无法读取剪贴板，请手动粘贴')
-  }
-}
+const startCrawl = async () => {
+  if (!university.value.trim()) return
 
-const startExtract = async () => {
-  extracting.value = true
+  crawling.value = true
   result.value = null
+  steps.value = ['开始采集...']
 
   try {
-    const { data } = await axios.post('/api/ai-extract', {
-      university: form.value.university,
-      url: form.value.url,
-      extract_type: form.value.extract_type,
+    const { data } = await axios.post('/api/auto-crawl', {
+      university: university.value.trim(),
+      year: year.value,
     })
+
     result.value = data
+    steps.value = data.steps || []
 
     if (data.success) {
-      ElMessage.success(`成功提取 ${data.count} 条数据！`)
+      ElMessage.success(`采集成功！共获取 ${totalRecords.value} 条数据`)
+    } else {
+      ElMessage.warning(data.errors?.[0] || '采集失败')
     }
   } catch (e) {
-    result.value = { success: false, error: e.message }
-    ElMessage.error('提取失败: ' + e.message)
+    result.value = { success: false, errors: [e.message] }
+    ElMessage.error('采集失败: ' + e.message)
   }
 
-  extracting.value = false
+  crawling.value = false
 }
 
 const open = () => {
   visible.value = true
   result.value = null
-  form.value = { university: '', url: '', extract_type: 'admission_list' }
+  steps.value = []
+  university.value = ''
+  year.value = 2025
 }
 
 defineExpose({ open })
 </script>
 
 <style scoped>
+.simple-form {
+  text-align: center;
+  padding: 20px 40px;
+}
+
+.form-desc {
+  color: #909399;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
 h4 {
   color: #303133;
   margin: 0;
+}
+
+.error-line {
+  color: #f56c6c;
+  font-size: 13px;
+  margin: 4px 0;
 }
 </style>
