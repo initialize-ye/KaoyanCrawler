@@ -6,6 +6,10 @@
         <span class="subtitle">考研数据采集系统</span>
       </div>
       <div class="header-right">
+        <el-button type="warning" @click="settingsDialog?.open()">
+          <el-icon><Setting /></el-icon>
+          AI设置
+        </el-button>
         <el-button type="success" @click="aiExtractor?.open()">
           <el-icon><MagicStick /></el-icon>
           AI智能提取
@@ -30,7 +34,8 @@
     </el-main>
 
     <ConfigWizard ref="configWizard" />
-    <AIExtractor ref="aiExtractor" />
+    <AIExtractor ref="aiExtractor" @open-settings="settingsDialog?.open()" />
+    <SettingsDialog ref="settingsDialog" />
   </el-container>
 </template>
 
@@ -41,11 +46,13 @@ import SearchPanel from './components/SearchPanel.vue'
 import AdmissionTable from './components/AdmissionTable.vue'
 import ConfigWizard from './components/ConfigWizard.vue'
 import AIExtractor from './components/AIExtractor.vue'
+import SettingsDialog from './components/SettingsDialog.vue'
 
 const statsPanel = ref(null)
 const admissionTable = ref(null)
 const configWizard = ref(null)
 const aiExtractor = ref(null)
+const settingsDialog = ref(null)
 
 const handleSearch = (params) => {
   admissionTable.value?.fetchData(params)

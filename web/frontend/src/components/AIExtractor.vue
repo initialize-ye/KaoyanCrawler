@@ -2,7 +2,10 @@
   <el-dialog v-model="visible" title="AI智能提取" width="700px">
     <el-alert v-if="!aiAvailable" type="warning" :closable="false" style="margin-bottom: 16px">
       <template #title>
-        AI功能未启用。请设置环境变量 ANTHROPIC_API_KEY 或 DEEPSEEK_API_KEY 后重启服务。
+        <div style="display: flex; align-items: center; justify-content: space-between">
+          <span>AI功能未配置，请先设置API Key</span>
+          <el-button type="primary" size="small" @click="openSettings">去设置</el-button>
+        </div>
       </template>
     </el-alert>
 
@@ -90,6 +93,8 @@ import { ref, computed, onMounted } from 'vue'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 
+const emit = defineEmits(['open-settings'])
+
 const visible = ref(false)
 const crawling = ref(false)
 const aiAvailable = ref(false)
@@ -100,6 +105,11 @@ const steps = ref([])
 const result = ref(null)
 
 const canStart = computed(() => university.value.trim() && aiAvailable.value)
+
+const openSettings = () => {
+  visible.value = false
+  emit('open-settings')
+}
 
 const totalRecords = computed(() => {
   if (!result.value?.results) return 0

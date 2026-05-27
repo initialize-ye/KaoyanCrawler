@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import httpx
@@ -11,6 +10,12 @@ from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from src.config.settings import (
+    AI_PROVIDERS,
+    get_ai_config,
+    load_settings,
+    save_settings,
+)
 from src.crawler.ai_extractor import AIExtractor
 from src.crawler.discovery import discover_links
 from src.db.database import Database
@@ -36,13 +41,13 @@ app.add_middleware(
 
 html_parser = HTMLParser()
 
-# AI提取器初始化（需要设置环境变量）
+
 def get_ai_extractor() -> AIExtractor | None:
-    api_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("DEEPSEEK_API_KEY")
-    if not api_key:
+    """根据用户配置获取AI提取器。"""
+    config = get_ai_config()
+    if not config:
         return None
-    provider = "claude" if os.environ.get("ANTHROPIC_API_KEY") else "deepseek"
-    return AIExtractor(api_key=api_key, provider=provider)
+    return AIExtractor(config)
 
 
 def get_db() -> Database:
@@ -368,4 +373,62 @@ async def get_grad_schools():
             {"name": name, "url": url}
             for name, url in GRAD_SCHOOL_URLS.items()
         ]
+    }
+
+
+# ========== 设置 API ==========
+
+class SaveSettingsRequest(BaseModel):
+    ai_provider: str
+    ai_api_key: str
+    ai_base_url: str = ""
+    ai_model: str = ""
+
+
+@app.get("/api/settings")
+async def get_settings():
+    """获取当前设置。"""
+    settings = load_settings()
+    return {
+        "ai_provider": settings.get("ai_provider", ""),
+        "ai_api_key": settings.get("ai_api_key", ""),
+        "ai_base_url": settings.get("ai_base_url", ""),
+        "ai_model": settings.get("ai_model", ""),
+    }
+
+
+@app.post("/api/settings")
+async def update_settings(req: SaveSettingsRequest):
+    """保存设置。"""
+    settings = {
+        "ai_provider": req.ai_provider,
+        "ai_api_key": req.ai_api_key,
+        "ai_base_url": req.ai_base_url,
+        "ai_model": req.ai_model,
+    }
+    save_settings(settings)
+    return {"status": "ok", "message": "设置已保存"}
+
+
+@app.get("/api/ai-providers")
+async def get_ai_providers():
+    """获取支持的AI模型列表。"""
+    return {"providers": AI_PROVIDERS}
+
+
+@app.get("/api/ai-status")
+async def ai_status():
+    """检查AI功能是否可用。"""
+    config = get_ai_config()
+    if not config:
+        return {
+            "available": False,
+            "message": "未配置AI，请在设置中配置API Key",
+        }
+
+    return {
+        "available": True,
+        "provider": config.get("provider"),
+        "model": config.get("model"),
+        "message": f"已配置 {AI_PROVIDERS.get(config.get('provider'), {}).get('name', config.get('provider'))}",
     }
