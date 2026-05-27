@@ -1,0 +1,25 @@
+name: 华南理工大学
+code: scut
+graduate_school_url: https://admission.scut.edu.cn
+tags:
+- '985'
+- '211'
+targets:
+- name: 2025年硕士研究生拟录取名单
+  type: admission_list
+  url: https://admission.scut.edu.cn/zsxx/sszs/index.htm
+  format: html
+  selectors:
+    table: table
+    row: tr
+    columns:
+      0: exam_id
+      1: name
+      2: major
+      3: initial_score
+      4: retest_score
+      5: total_score
+      6: admission_status
+  parse_rules:
+    year: 2025
+    list_type: 录取名单

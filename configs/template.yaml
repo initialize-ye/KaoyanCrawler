@@ -1,0 +1,62 @@
+# 学校配置模板
+# 每所学校一个配置文件，文件名为学校代码（如 tsinghua.yaml）
+
+# 学校名称
+name: "示例大学"
+
+# 学校代码（小写拼音）
+code: "example"
+
+# 研究生院/招生办官网
+graduate_school_url: "https://grs.example.edu.cn"
+
+# 标签：用于分组筛选
+tags:
+  - 985
+  - 211
+
+# 爬取目标列表
+targets:
+  # 录取名单
+  - name: "2025年硕士研究生录取名单"
+    type: "admission_list"
+    url: "https://grs.example.edu.cn/2025/admission.html"
+    format: "html"  # html 或 pdf
+
+    # HTML格式的选择器配置
+    selectors:
+      table: "table"           # 表格CSS选择器
+      row: "tr"                # 行选择器
+      columns:                 # 列映射：列索引 -> 字段名
+        0: "exam_id"
+        1: "name"
+        2: "major"
+        3: "initial_score"
+        4: "retest_score"
+        5: "total_score"
+        6: "admission_status"
+
+    # 解析规则
+    parse_rules:
+      year: 2025
+      list_type: "录取名单"
+
+  # PDF格式的录取名单
+  - name: "2025年硕士研究生复试名单"
+    type: "admission_list"
+    url: "https://grs.example.edu.cn/2025/retest.pdf"
+    format: "pdf"
+
+    # PDF格式不需要selectors，自动检测表头
+    parse_rules:
+      year: 2025
+      list_type: "复试名单"
+
+  # 招生专业目录
+  - name: "2025年硕士研究生招生专业目录"
+    type: "program_catalog"
+    url: "https://grs.example.edu.cn/2025/catalog.pdf"
+    format: "pdf"
+
+    parse_rules:
+      year: 2025
