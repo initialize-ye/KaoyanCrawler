@@ -1,9 +1,8 @@
 <template>
-  <el-dialog v-model="visible" title="添加学校配置" width="900px" :close-on-click-modal="false">
+  <el-dialog v-model="visible" title="添加学校配置" width="950px" :close-on-click-modal="false">
     <el-steps :active="step" finish-status="success" align-center>
-      <el-step title="输入学校信息" />
-      <el-step title="发现目标页面" />
-      <el-step title="选择表格" />
+      <el-step title="学校信息" />
+      <el-step title="添加数据源" />
       <el-step title="确认生成" />
     </el-steps>
 
@@ -18,133 +17,169 @@
             <el-input v-model="form.code" placeholder="自动生成，也可手动修改" />
             <div class="form-tip">用于配置文件名，输入学校名称后自动生成</div>
           </el-form-item>
-          <el-form-item label="研究生院URL" required>
-            <el-input v-model="form.url" placeholder="如：https://yz.tsinghua.edu.cn" />
+          <el-form-item label="研究生院URL">
+            <el-input v-model="form.url" placeholder="如：https://yz.tsinghua.edu.cn（可选）" />
+            <div class="form-tip">如果名单在学院官网，此项可留空，直接在下一步添加</div>
           </el-form-item>
         </el-form>
       </div>
 
-      <!-- 步骤2：自动发现链接 -->
+      <!-- 步骤2：管理多个数据源 -->
       <div v-if="step === 1">
-        <div v-loading="discovering" style="margin-top: 20px">
-          <p style="margin-bottom: 16px; color: #606266">
-            正在扫描 <strong>{{ form.url }}</strong> 页面，查找复试/录取名单链接...
-          </p>
-
-          <div v-if="discoveredLinks.admission_list?.length">
-            <h4>录取名单相关链接：</h4>
-            <el-radio-group v-model="selectedAdmissionLink" style="display: flex; flex-direction: column; gap: 8px; margin: 12px 0">
-              <el-radio v-for="(link, i) in discoveredLinks.admission_list" :key="i" :value="link.url" border>
-                {{ link.text }}
-                <el-tag size="small" type="info" style="margin-left: 8px">{{ link.url }}</el-tag>
-              </el-radio>
-            </el-radio-group>
+        <!-- 已添加的数据源列表 -->
+        <div style="margin-top: 20px">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px">
+            <h4>已添加的数据源</h4>
+            <el-button type="primary" size="small" @click="showAddSource = true">
+              <el-icon><Plus /></el-icon> 添加数据源
+            </el-button>
           </div>
 
-          <div v-if="discoveredLinks.program_catalog?.length">
-            <h4>招生专业目录链接：</h4>
-            <el-radio-group v-model="selectedCatalogLink" style="display: flex; flex-direction: column; gap: 8px; margin: 12px 0">
-              <el-radio v-for="(link, i) in discoveredLinks.program_catalog" :key="i" :value="link.url" border>
-                {{ link.text }}
-                <el-tag size="small" type="info" style="margin-left: 8px">{{ link.url }}</el-tag>
-              </el-radio>
-            </el-radio-group>
-          </div>
+          <el-empty v-if="sources.length === 0" description="还没有添加数据源，点击上方按钮添加" />
 
-          <el-empty v-if="!discovering && !hasAnyLink" description="未发现相关链接，请检查URL是否正确" />
-
-          <el-divider />
-          <p style="color: #909399; font-size: 13px">
-            没找到？也可以手动输入目标页面URL：
-          </p>
-          <el-input v-model="manualUrl" placeholder="手动输入目标页面URL" style="margin-top: 8px">
-            <template #append>
-              <el-button @click="addManualLink">添加</el-button>
-            </template>
-          </el-input>
-        </div>
-      </div>
-
-      <!-- 步骤3：选择表格 -->
-      <div v-if="step === 2">
-        <div v-loading="previewing" style="margin-top: 20px">
-          <p style="margin-bottom: 16px; color: #606266">
-            页面 <strong>{{ currentPreviewUrl }}</strong> 中发现以下表格，请选择要爬取的表格：
-          </p>
-
-          <div v-for="table in previewTables" :key="table.index" class="table-preview-card"
-               :class="{ selected: selectedTableIndex === table.index }"
-               @click="selectTable(table)">
-            <div class="table-header">
-              <el-tag>表格 {{ table.index + 1 }}</el-tag>
-              <span style="margin-left: 8px">{{ table.row_count }} 行数据</span>
-              <el-tag v-if="selectedTableIndex === table.index" type="success" style="margin-left: auto">已选择</el-tag>
+          <div v-for="(source, i) in sources" :key="i" class="source-card">
+            <div class="source-header">
+              <div>
+                <el-tag :type="source.type === 'admission_list' ? 'success' : 'warning'" size="small">
+                  {{ source.type === 'admission_list' ? '录取名单' : '招生目录' }}
+                </el-tag>
+                <span style="margin-left: 8px; font-weight: 500">{{ source.name || '未命名' }}</span>
+              </div>
+              <el-button type="danger" text size="small" @click="sources.splice(i, 1)">删除</el-button>
             </div>
+            <div class="source-url">{{ source.url }}</div>
+            <div v-if="source.tableSelector" class="source-detail">
+              表格: <code>{{ source.tableSelector }}</code> | {{ source.columnCount }} 列
+            </div>
+          </div>
+        </div>
 
-            <el-table :data="table.sample_rows" border size="small" style="margin-top: 8px">
-              <el-table-column v-for="(header, hi) in table.headers" :key="hi" :label="header" min-width="100">
+        <!-- 添加数据源弹窗 -->
+        <el-dialog v-model="showAddSource" title="添加数据源" width="800px" append-to-body>
+          <el-form :model="newSource" label-width="100px">
+            <el-form-item label="数据源名称">
+              <el-input v-model="newSource.name" placeholder="如：计算机学院录取名单" />
+            </el-form-item>
+            <el-form-item label="类型">
+              <el-radio-group v-model="newSource.type">
+                <el-radio value="admission_list">复试/录取名单</el-radio>
+                <el-radio value="program_catalog">招生专业目录</el-radio>
+              </el-radio-group>
+            </el-form-item>
+            <el-form-item label="来源">
+              <el-radio-group v-model="newSource.sourceType">
+                <el-radio value="url">输入URL扫描</el-radio>
+                <el-radio value="graduate">从研究生院发现</el-radio>
+              </el-radio-group>
+            </el-form-item>
+
+            <!-- 方式1：直接输入URL -->
+            <el-form-item v-if="newSource.sourceType === 'url'" label="页面URL" required>
+              <el-input v-model="newSource.url" placeholder="粘贴包含名单的页面URL">
+                <template #append>
+                  <el-button @click="scanUrl" :loading="scanning">扫描</el-button>
+                </template>
+              </el-input>
+            </el-form-item>
+
+            <!-- 方式2：从研究生院发现 -->
+            <el-form-item v-if="newSource.sourceType === 'graduate'" label="研究生院">
+              <el-button @click="discoverFromGrad" :loading="scanning" :disabled="!form.url">
+                {{ form.url ? '扫描 ' + form.url : '请先在上一步填写研究生院URL' }}
+              </el-button>
+            </el-form-item>
+          </el-form>
+
+          <!-- 发现的链接列表 -->
+          <div v-if="discoveredLinks.length" style="margin: 16px 0">
+            <h4>发现的链接（点击选择）：</h4>
+            <div class="link-list">
+              <div v-for="(link, i) in discoveredLinks" :key="i" class="link-item"
+                   :class="{ selected: newSource.url === link.url }"
+                   @click="newSource.url = link.url; scanUrl()">
+                <span>{{ link.text }}</span>
+                <el-tag size="small" type="info">{{ link.url }}</el-tag>
+              </div>
+            </div>
+          </div>
+
+          <!-- 表格预览 -->
+          <div v-if="previewTables.length" style="margin: 16px 0">
+            <h4>选择要爬取的表格：</h4>
+            <div v-for="table in previewTables" :key="table.index" class="table-preview-card"
+                 :class="{ selected: selectedTableIndex === table.index }"
+                 @click="selectTable(table)">
+              <div class="table-header">
+                <el-tag>表格 {{ table.index + 1 }}</el-tag>
+                <span style="margin-left: 8px">{{ table.row_count }} 行</span>
+                <el-tag v-if="selectedTableIndex === table.index" type="success" style="margin-left: auto">已选择</el-tag>
+              </div>
+              <el-table :data="table.sample_rows" border size="small" style="margin-top: 8px" max-height="150">
+                <el-table-column v-for="(header, hi) in table.headers" :key="hi" :label="header" min-width="80">
+                  <template #default="{ row }">{{ row[hi] || '-' }}</template>
+                </el-table-column>
+              </el-table>
+            </div>
+          </div>
+
+          <!-- 列映射 -->
+          <div v-if="columnMapping.length" style="margin: 16px 0">
+            <h4>列映射（自动猜测，可手动调整）：</h4>
+            <el-table :data="columnMapping" border size="small" max-height="200">
+              <el-table-column prop="header" label="表头" width="120" />
+              <el-table-column label="映射字段">
                 <template #default="{ row }">
-                  {{ row[hi] || '-' }}
+                  <el-select v-model="row.field" placeholder="选择" clearable size="small">
+                    <el-option label="考生编号" value="exam_id" />
+                    <el-option label="姓名" value="name" />
+                    <el-option label="专业" value="major" />
+                    <el-option label="初试成绩" value="initial_score" />
+                    <el-option label="复试成绩" value="retest_score" />
+                    <el-option label="总分" value="total_score" />
+                    <el-option label="录取状态" value="admission_status" />
+                    <el-option label="录取类别" value="admission_type" />
+                    <el-option label="专业代码" value="major_code" />
+                    <el-option label="专业名称" value="major_name" />
+                    <el-option label="政治" value="subject1" />
+                    <el-option label="外语" value="subject2" />
+                    <el-option label="业务课一" value="subject3" />
+                    <el-option label="业务课二" value="subject4" />
+                  </el-select>
                 </template>
               </el-table-column>
             </el-table>
-
-            <p style="margin-top: 4px; font-size: 12px; color: #909399">
-              CSS选择器: <code>{{ table.selector }}</code>
-            </p>
           </div>
 
-          <el-empty v-if="!previewing && previewTables.length === 0" description="页面中未发现表格" />
-        </div>
-
-        <el-divider />
-        <h4>列映射配置</h4>
-        <p style="color: #909399; font-size: 13px; margin-bottom: 12px">
-          将表格的每一列映射到对应的字段（点击表头可修改）：
-        </p>
-        <el-table :data="columnMapping" border size="small">
-          <el-table-column prop="index" label="列序号" width="80" />
-          <el-table-column prop="header" label="表头名称" width="150" />
-          <el-table-column label="映射字段">
-            <template #default="{ row }">
-              <el-select v-model="row.field" placeholder="选择字段" clearable>
-                <el-option label="考生编号" value="exam_id" />
-                <el-option label="姓名" value="name" />
-                <el-option label="专业" value="major" />
-                <el-option label="初试成绩" value="initial_score" />
-                <el-option label="复试成绩" value="retest_score" />
-                <el-option label="总分" value="total_score" />
-                <el-option label="录取状态" value="admission_status" />
-                <el-option label="录取类别" value="admission_type" />
-                <el-option label="学习方式" value="study_mode" />
-                <el-option label="专业代码" value="major_code" />
-                <el-option label="专业名称" value="major_name" />
-                <el-option label="政治" value="subject1" />
-                <el-option label="外语" value="subject2" />
-                <el-option label="业务课一" value="subject3" />
-                <el-option label="业务课二" value="subject4" />
-              </el-select>
-            </template>
-          </el-table-column>
-        </el-table>
+          <template #footer>
+            <el-button @click="showAddSource = false">取消</el-button>
+            <el-button type="primary" @click="confirmAddSource" :disabled="!newSource.url || !newSource.type">
+              添加
+            </el-button>
+          </template>
+        </el-dialog>
       </div>
 
-      <!-- 步骤4：确认生成 -->
-      <div v-if="step === 3">
+      <!-- 步骤3：确认生成 -->
+      <div v-if="step === 2">
         <el-descriptions title="配置预览" :column="1" border style="margin-top: 20px">
           <el-descriptions-item label="学校名称">{{ form.name }}</el-descriptions-item>
           <el-descriptions-item label="学校代码">{{ form.code }}</el-descriptions-item>
-          <el-descriptions-item label="研究生院URL">{{ form.url }}</el-descriptions-item>
-          <el-descriptions-item label="目标数量">{{ targets.length }} 个</el-descriptions-item>
+          <el-descriptions-item label="研究生院URL">{{ form.url || '（未填写）' }}</el-descriptions-item>
+          <el-descriptions-item label="数据源数量">{{ sources.length }} 个</el-descriptions-item>
         </el-descriptions>
 
-        <div v-for="(target, i) in targets" :key="i" style="margin-top: 16px">
+        <div v-for="(source, i) in sources" :key="i" style="margin-top: 16px">
           <el-card shadow="never">
-            <template #header>{{ target.name }}</template>
-            <p>URL: {{ target.url }}</p>
-            <p>格式: {{ target.format }}</p>
-            <p>类型: {{ target.type === 'admission_list' ? '录取名单' : '招生专业目录' }}</p>
-            <p v-if="target.selector">选择器: {{ target.selector }}</p>
+            <template #header>
+              <div style="display: flex; align-items: center; gap: 8px">
+                <el-tag :type="source.type === 'admission_list' ? 'success' : 'warning'" size="small">
+                  {{ source.type === 'admission_list' ? '录取名单' : '招生目录' }}
+                </el-tag>
+                {{ source.name }}
+              </div>
+            </template>
+            <p>URL: {{ source.url }}</p>
+            <p v-if="source.tableSelector">选择器: {{ source.tableSelector }}</p>
           </el-card>
         </div>
       </div>
@@ -152,10 +187,10 @@
 
     <template #footer>
       <el-button v-if="step > 0" @click="step--">上一步</el-button>
-      <el-button v-if="step < 3" type="primary" @click="nextStep" :disabled="!canProceed">
-        {{ step === 2 ? '生成配置' : '下一步' }}
+      <el-button v-if="step < 2" type="primary" @click="nextStep" :disabled="!canProceed">
+        {{ step === 1 && sources.length === 0 ? '跳过，直接生成' : '下一步' }}
       </el-button>
-      <el-button v-if="step === 3" type="success" @click="saveConfig" :loading="saving">
+      <el-button v-if="step === 2" type="success" @click="saveConfig" :loading="saving">
         保存配置
       </el-button>
     </template>
@@ -167,7 +202,6 @@ import { ref, computed, watch } from 'vue'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 
-// 常见985/211院校名称 -> 拼音代码映射
 const UNIVERSITY_CODE_MAP = {
   '北京大学': 'pku', '清华大学': 'tsinghua', '中国人民大学': 'ruc',
   '北京航空航天大学': 'buaa', '北京理工大学': 'bit', '北京师范大学': 'bnu',
@@ -185,108 +219,85 @@ const UNIVERSITY_CODE_MAP = {
 }
 
 const generateCode = (name) => {
-  // 优先从映射表查找
   if (UNIVERSITY_CODE_MAP[name]) return UNIVERSITY_CODE_MAP[name]
-  // 简单处理：去掉"大学"等后缀，用名称前两个字的unicode作为临时code
   return name.replace(/大学|学院|学校/g, '').slice(0, 4) || 'unknown'
 }
 
 const visible = ref(false)
 const step = ref(0)
-const discovering = ref(false)
-const previewing = ref(false)
 const saving = ref(false)
+const scanning = ref(false)
+const showAddSource = ref(false)
 
 const form = ref({ name: '', code: '', url: '' })
+const sources = ref([])
 
-// 监听学校名称变化，自动生成代码
-watch(() => form.value.name, (newName) => {
-  if (newName) form.value.code = generateCode(newName)
+// 新数据源表单
+const newSource = ref({
+  name: '',
+  type: 'admission_list',
+  sourceType: 'url',
+  url: '',
 })
-const discoveredLinks = ref({})
-const selectedAdmissionLink = ref('')
-const selectedCatalogLink = ref('')
-const manualUrl = ref('')
 
+const discoveredLinks = ref([])
 const previewTables = ref([])
-const currentPreviewUrl = ref('')
 const selectedTableIndex = ref(-1)
 const columnMapping = ref([])
 
-const targets = ref([])
-
-const hasAnyLink = computed(() => {
-  return (discoveredLinks.value.admission_list?.length || 0) +
-         (discoveredLinks.value.program_catalog?.length || 0) > 0
+watch(() => form.value.name, (newName) => {
+  if (newName) form.value.code = generateCode(newName)
 })
 
 const canProceed = computed(() => {
-  if (step.value === 0) return form.value.name && form.value.url
-  if (step.value === 1) return selectedAdmissionLink.value || selectedCatalogLink.value || targets.value.length > 0
-  if (step.value === 2) return selectedTableIndex.value >= 0
+  if (step.value === 0) return form.value.name
   return true
 })
 
-const open = () => {
-  visible.value = true
-  step.value = 0
-  form.value = { name: '', code: '', url: '' }
-  discoveredLinks.value = {}
-  selectedAdmissionLink.value = ''
-  selectedCatalogLink.value = ''
-  targets.value = []
-  previewTables.value = []
-  selectedTableIndex.value = -1
-  columnMapping.value = []
-}
-
-const nextStep = async () => {
-  if (step.value === 0) {
-    // 步骤1 -> 2：发现链接
-    discovering.value = true
-    try {
-      const { data } = await axios.get('/api/discover', { params: { url: form.value.url } })
-      discoveredLinks.value = data
-    } catch (e) {
-      ElMessage.error('发现链接失败: ' + e.message)
-    }
-    discovering.value = false
-  }
-
-  if (step.value === 1) {
-    // 步骤2 -> 3：预览表格
-    const url = selectedAdmissionLink.value || selectedCatalogLink.value
-    if (!url) {
-      ElMessage.warning('请选择一个目标链接')
-      return
-    }
-    await loadTablePreview(url)
-  }
-
-  if (step.value === 2) {
-    // 步骤3 -> 4：生成配置目标
-    buildTargets()
-  }
-
+const nextStep = () => {
   step.value++
 }
 
-const loadTablePreview = async (url) => {
-  previewing.value = true
-  currentPreviewUrl.value = url
+// 扫描URL，预览表格
+const scanUrl = async () => {
+  if (!newSource.value.url) return
+  scanning.value = true
+  previewTables.value = []
   selectedTableIndex.value = -1
+  columnMapping.value = []
+
   try {
-    const { data } = await axios.get('/api/preview-tables', { params: { url } })
+    const { data } = await axios.get('/api/preview-tables', { params: { url: newSource.value.url } })
     previewTables.value = data.tables || []
     if (previewTables.value.length === 1) {
       selectTable(previewTables.value[0])
     }
   } catch (e) {
-    ElMessage.error('预览表格失败: ' + e.message)
+    ElMessage.error('扫描失败: ' + e.message)
   }
-  previewing.value = false
+  scanning.value = false
 }
 
+// 从研究生院发现链接
+const discoverFromGrad = async () => {
+  if (!form.value.url) return
+  scanning.value = true
+  discoveredLinks.value = []
+
+  try {
+    const { data } = await axios.get('/api/discover', { params: { url: form.value.url } })
+    const key = newSource.value.type === 'admission_list' ? 'admission_list' : 'program_catalog'
+    discoveredLinks.value = data[key] || []
+    if (discoveredLinks.value.length === 0) {
+      ElMessage.info('未发现相关链接，可以手动输入URL')
+    }
+  } catch (e) {
+    ElMessage.error('发现失败: ' + e.message)
+  }
+  scanning.value = false
+}
+
+// 选择表格
 const selectTable = (table) => {
   selectedTableIndex.value = table.index
   columnMapping.value = table.headers.map((header, i) => ({
@@ -296,20 +307,20 @@ const selectTable = (table) => {
   }))
 }
 
+// 猜测字段映射
 const guessField = (header) => {
   const mapping = {
     '考生编号': 'exam_id', '准考证号': 'exam_id', '报名号': 'exam_id',
-    '姓名': 'name', '名字': 'name',
+    '姓名': 'name',
     '专业': 'major', '报考专业': 'major', '录取专业': 'major',
-    '初试成绩': 'initial_score', '初试总分': 'initial_score', '初试': 'initial_score',
-    '复试成绩': 'retest_score', '复试总分': 'retest_score', '复试': 'retest_score',
+    '初试成绩': 'initial_score', '初试总分': 'initial_score',
+    '复试成绩': 'retest_score', '复试总分': 'retest_score',
     '总分': 'total_score', '总成绩': 'total_score',
-    '录取状态': 'admission_status', '状态': 'admission_status', '是否录取': 'admission_status',
-    '录取类别': 'admission_type', '类别': 'admission_type',
-    '学习方式': 'study_mode', '全日制': 'study_mode',
-    '专业代码': 'major_code', '代码': 'major_code',
+    '录取状态': 'admission_status', '状态': 'admission_status',
+    '录取类别': 'admission_type',
+    '专业代码': 'major_code',
     '科目一': 'subject1', '政治': 'subject1',
-    '科目二': 'subject2', '外语': 'subject2', '英语': 'subject2',
+    '科目二': 'subject2', '外语': 'subject2',
     '科目三': 'subject3', '业务课一': 'subject3',
     '科目四': 'subject4', '业务课二': 'subject4',
   }
@@ -319,64 +330,78 @@ const guessField = (header) => {
   return ''
 }
 
-const buildTargets = () => {
-  targets.value = []
-
-  if (selectedAdmissionLink.value) {
-    const columns = {}
-    for (const col of columnMapping.value) {
-      if (col.field) columns[col.index] = col.field
-    }
-    targets.value.push({
-      name: `${new Date().getFullYear()}年硕士研究生录取名单`,
-      type: 'admission_list',
-      url: selectedAdmissionLink.value,
-      format: 'html',
-      selectors: { table: 'table', row: 'tr', columns },
-      parse_rules: { year: new Date().getFullYear(), list_type: '录取名单' },
-      selector: previewTables.value[selectedTableIndex.value]?.selector,
-    })
+// 确认添加数据源
+const confirmAddSource = () => {
+  const columns = {}
+  for (const col of columnMapping.value) {
+    if (col.field) columns[col.index] = col.field
   }
 
-  if (selectedCatalogLink.value) {
-    targets.value.push({
-      name: `${new Date().getFullYear()}年硕士研究生招生专业目录`,
-      type: 'program_catalog',
-      url: selectedCatalogLink.value,
-      format: 'html',
-      selectors: { table: 'table', row: 'tr', columns: {} },
-      parse_rules: { year: new Date().getFullYear() },
-    })
-  }
-}
-
-const addManualLink = () => {
-  if (!manualUrl.value) return
-  if (!discoveredLinks.value.admission_list) discoveredLinks.value.admission_list = []
-  discoveredLinks.value.admission_list.push({
-    url: manualUrl.value,
-    text: '手动添加的链接',
-    matched_keyword: 'manual',
+  sources.value.push({
+    name: newSource.value.name || `${form.value.name} ${newSource.value.type === 'admission_list' ? '录取名单' : '招生目录'}`,
+    type: newSource.value.type,
+    url: newSource.value.url,
+    tableSelector: previewTables.value[selectedTableIndex.value]?.selector || '',
+    columnCount: Object.keys(columns).length,
+    columns,
   })
-  selectedAdmissionLink.value = manualUrl.value
-  manualUrl.value = ''
+
+  // 重置
+  showAddSource.value = false
+  newSource.value = { name: '', type: 'admission_list', sourceType: 'url', url: '' }
+  discoveredLinks.value = []
+  previewTables.value = []
+  selectedTableIndex.value = -1
+  columnMapping.value = []
+
+  ElMessage.success('数据源已添加')
 }
 
+// 保存配置
 const saveConfig = async () => {
   saving.value = true
   try {
+    const targets = sources.value.map(s => ({
+      name: s.name,
+      type: s.type,
+      url: s.url,
+      format: 'html',
+      selectors: {
+        table: s.tableSelector || 'table',
+        row: 'tr',
+        columns: s.columns || {},
+      },
+      parse_rules: {
+        year: new Date().getFullYear(),
+        list_type: s.type === 'admission_list' ? '录取名单' : '招生目录',
+      },
+    }))
+
     await axios.post('/api/generate-config', {
       university_name: form.value.name,
       university_code: form.value.code,
-      graduate_school_url: form.value.url,
-      targets: targets.value,
+      graduate_school_url: form.value.url || '',
+      targets,
     })
+
     ElMessage.success('配置保存成功！')
     visible.value = false
   } catch (e) {
     ElMessage.error('保存失败: ' + e.message)
   }
   saving.value = false
+}
+
+const open = () => {
+  visible.value = true
+  step.value = 0
+  form.value = { name: '', code: '', url: '' }
+  sources.value = []
+  showAddSource.value = false
+  discoveredLinks.value = []
+  previewTables.value = []
+  selectedTableIndex.value = -1
+  columnMapping.value = []
 }
 
 defineExpose({ open })
@@ -388,11 +413,65 @@ defineExpose({ open })
   padding: 0 20px;
 }
 
+.source-card {
+  border: 1px solid #e4e7ed;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+}
+
+.source-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.source-url {
+  font-size: 13px;
+  color: #909399;
+  margin-top: 4px;
+  word-break: break-all;
+}
+
+.source-detail {
+  font-size: 12px;
+  color: #67c23a;
+  margin-top: 4px;
+}
+
+.link-list {
+  max-height: 200px;
+  overflow-y: auto;
+  margin-top: 8px;
+}
+
+.link-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.link-item:hover {
+  border-color: #409eff;
+  background: #f5f7fa;
+}
+
+.link-item.selected {
+  border-color: #67c23a;
+  background: #f0f9ff;
+}
+
 .table-preview-card {
   border: 2px solid #e4e7ed;
   border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 12px;
+  padding: 12px;
+  margin-bottom: 10px;
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -409,7 +488,6 @@ defineExpose({ open })
 .table-header {
   display: flex;
   align-items: center;
-  margin-bottom: 8px;
 }
 
 h4 {
