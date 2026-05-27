@@ -1,8 +1,14 @@
 <template>
   <el-container class="app-container">
     <el-header class="app-header">
-      <h1>KaoyanCrawler</h1>
-      <span class="subtitle">考研数据采集系统</span>
+      <div class="header-left">
+        <h1>KaoyanCrawler</h1>
+        <span class="subtitle">考研数据采集系统</span>
+      </div>
+      <el-button type="primary" @click="configWizard?.open()">
+        <el-icon><Plus /></el-icon>
+        添加学校配置
+      </el-button>
     </el-header>
 
     <el-main>
@@ -16,6 +22,8 @@
         </el-col>
       </el-row>
     </el-main>
+
+    <ConfigWizard ref="configWizard" />
   </el-container>
 </template>
 
@@ -24,9 +32,11 @@ import { ref } from 'vue'
 import StatsPanel from './components/StatsPanel.vue'
 import SearchPanel from './components/SearchPanel.vue'
 import AdmissionTable from './components/AdmissionTable.vue'
+import ConfigWizard from './components/ConfigWizard.vue'
 
 const statsPanel = ref(null)
 const admissionTable = ref(null)
+const configWizard = ref(null)
 
 const handleSearch = (params) => {
   admissionTable.value?.fetchData(params)
@@ -53,8 +63,14 @@ body {
   color: white;
   display: flex;
   align-items: center;
-  gap: 16px;
+  justify-content: space-between;
   padding: 0 24px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 
 .app-header h1 {
