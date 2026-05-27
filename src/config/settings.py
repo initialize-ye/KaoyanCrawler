@@ -67,6 +67,13 @@ AI_PROVIDERS = {
         "key_placeholder": "sk-...",
         "description": "硅基流动平台，支持多种开源模型",
     },
+    "mimo": {
+        "name": "小米 MiMo",
+        "base_url": "https://api.xiaomi.com/v1/chat/completions",
+        "model": "MiMo-7B-RL",
+        "key_placeholder": "sk-...",
+        "description": "小米MiMo模型，擅长推理和代码",
+    },
     "custom": {
         "name": "自定义OpenAI兼容接口",
         "base_url": "",
