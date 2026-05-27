@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import httpx
@@ -10,8 +11,10 @@ from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from src.crawler.ai_extractor import AIExtractor
 from src.crawler.discovery import discover_links
 from src.db.database import Database
+from src.models.schemas import AdmissionRecord, ExamSubject, ListType
 from src.parsers.html_parser import HTMLParser
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -32,6 +35,14 @@ app.add_middleware(
 )
 
 html_parser = HTMLParser()
+
+# AI提取器初始化（需要设置环境变量）
+def get_ai_extractor() -> AIExtractor | None:
+    api_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("DEEPSEEK_API_KEY")
+    if not api_key:
+        return None
+    provider = "claude" if os.environ.get("ANTHROPIC_API_KEY") else "deepseek"
+    return AIExtractor(api_key=api_key, provider=provider)
 
 
 def get_db() -> Database:
@@ -162,3 +173,137 @@ async def list_configs():
                 "target_count": len(data.get("targets", [])),
             })
     return {"configs": configs}
+
+
+# ========== AI智能提取 API ==========
+
+class AIExtractRequest(BaseModel):
+    university: str
+    url: str
+    extract_type: str = "admission_list"  # admission_list 或 program_catalog
+
+
+@app.post("/api/ai-extract")
+async def ai_extract(req: AIExtractRequest):
+    """使用AI智能提取页面中的名单数据。"""
+    extractor = get_ai_extractor()
+    if not extractor:
+        return {
+            "success": False,
+            "error": "未配置API Key。请设置环境变量 ANTHROPIC_API_KEY 或 DEEPSEEK_API_KEY"
+        }
+
+    try:
+        # 1. 获取页面内容
+        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+            resp = await client.get(req.url, headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            })
+            resp.raise_for_status()
+            content = resp.text
+
+        # 2. AI提取
+        if req.extract_type == "admission_list":
+            result = await extractor.extract_admission_list(req.url, content)
+        else:
+            result = await extractor.extract_catalog(req.url, content)
+
+        # 3. 如果提取成功，保存到数据库
+        if result.get("found"):
+            db = get_db()
+            await db.init()
+
+            if req.extract_type == "admission_list":
+                records = []
+                for r in result.get("records", []):
+                    try:
+                        record = AdmissionRecord(
+                            university=req.university,
+                            year=result.get("year", 2025),
+                            list_type=ListType(result.get("list_type", "录取名单")),
+                            exam_id=str(r.get("exam_id", "")),
+                            name=str(r.get("name", "")),
+                            major=str(r.get("major", "")),
+                            initial_score=_to_float(r.get("initial_score")),
+                            retest_score=_to_float(r.get("retest_score")),
+                            total_score=_to_float(r.get("total_score")),
+                            admission_status=r.get("admission_status"),
+                            source_url=req.url,
+                        )
+                        records.append(record)
+                    except Exception as e:
+                        logger.warning(f"记录解析失败: {e}")
+
+                if records:
+                    await db.insert_admission_records(records)
+
+                return {
+                    "success": True,
+                    "list_type": result.get("list_type"),
+                    "year": result.get("year"),
+                    "count": len(records),
+                    "sample": [r.to_dict() for r in records[:5]],
+                }
+            else:
+                subjects = []
+                for s in result.get("subjects", []):
+                    try:
+                        subject = ExamSubject(
+                            university=req.university,
+                            year=result.get("year", 2025),
+                            major_code=str(s.get("major_code", "")),
+                            major_name=str(s.get("major_name", "")),
+                            subject1=s.get("subject1"),
+                            subject2=s.get("subject2"),
+                            subject3=s.get("subject3"),
+                            subject4=s.get("subject4"),
+                            source_url=req.url,
+                        )
+                        subjects.append(subject)
+                    except Exception as e:
+                        logger.warning(f"科目解析失败: {e}")
+
+                if subjects:
+                    await db.insert_exam_subjects(subjects)
+
+                return {
+                    "success": True,
+                    "year": result.get("year"),
+                    "count": len(subjects),
+                    "sample": [s.to_dict() for s in subjects[:5]],
+                }
+
+        # 4. 如果是PDF链接，返回提示
+        if result.get("pdf_url"):
+            return {
+                "success": False,
+                "is_pdf": True,
+                "pdf_url": result["pdf_url"],
+                "message": "该页面指向PDF文件，请直接提供PDF链接或下载后处理",
+            }
+
+        return {"success": False, "message": "页面中未找到相关数据"}
+
+    except Exception as e:
+        logger.error(f"AI提取失败: {e}")
+        return {"success": False, "error": str(e)}
+
+
+def _to_float(value) -> float | None:
+    if value is None or value == "" or value == "null":
+        return None
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return None
+
+
+@app.get("/api/ai-status")
+async def ai_status():
+    """检查AI功能是否可用。"""
+    extractor = get_ai_extractor()
+    return {
+        "available": extractor is not None,
+        "provider": extractor.provider if extractor else None,
+        "message": "AI功能可用" if extractor else "请设置环境变量 ANTHROPIC_API_KEY 或 DEEPSEEK_API_KEY",
+    }
