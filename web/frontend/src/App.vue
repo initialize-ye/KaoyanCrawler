@@ -14,10 +14,6 @@
           <el-icon><MagicStick /></el-icon>
           AI智能提取
         </el-button>
-        <el-button type="primary" @click="configWizard?.open()">
-          <el-icon><Plus /></el-icon>
-          添加学校配置
-        </el-button>
       </div>
     </el-header>
 
@@ -33,9 +29,8 @@
       </el-row>
     </el-main>
 
-    <ConfigWizard ref="configWizard" />
     <AIExtractor ref="aiExtractor" @open-settings="settingsDialog?.open()" />
-    <SettingsDialog ref="settingsDialog" />
+    <SettingsDialog ref="settingsDialog" @settings-saved="aiExtractor?.checkStatus?.()" />
   </el-container>
 </template>
 
@@ -44,13 +39,11 @@ import { ref } from 'vue'
 import StatsPanel from './components/StatsPanel.vue'
 import SearchPanel from './components/SearchPanel.vue'
 import AdmissionTable from './components/AdmissionTable.vue'
-import ConfigWizard from './components/ConfigWizard.vue'
 import AIExtractor from './components/AIExtractor.vue'
 import SettingsDialog from './components/SettingsDialog.vue'
 
 const statsPanel = ref(null)
 const admissionTable = ref(null)
-const configWizard = ref(null)
 const aiExtractor = ref(null)
 const settingsDialog = ref(null)
 

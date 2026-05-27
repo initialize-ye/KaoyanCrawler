@@ -116,14 +116,16 @@ const totalRecords = computed(() => {
   return result.value.results.reduce((sum, r) => sum + (r.saved_count || r.count || 0), 0)
 })
 
-onMounted(async () => {
+const checkStatus = async () => {
   try {
-    const { data } = await axios.get('/api/ai-status')
+    const { data } = await axios.get('/api/ai-status', { params: { t: Date.now() } })
     aiAvailable.value = data.available
   } catch (e) {
     aiAvailable.value = false
   }
-})
+}
+
+onMounted(checkStatus)
 
 const startCrawl = async () => {
   if (!university.value.trim()) return
@@ -154,15 +156,16 @@ const startCrawl = async () => {
   crawling.value = false
 }
 
-const open = () => {
+const open = async () => {
   visible.value = true
   result.value = null
   steps.value = []
   university.value = ''
   year.value = 2025
+  await checkStatus()
 }
 
-defineExpose({ open })
+defineExpose({ open, checkStatus })
 </script>
 
 <style scoped>

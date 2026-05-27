@@ -51,6 +51,8 @@ import { ref, computed, onMounted } from 'vue'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 
+const emit = defineEmits(['settings-saved'])
+
 const visible = ref(false)
 const saving = ref(false)
 
@@ -117,6 +119,7 @@ const saveSettings = async () => {
     await axios.post('/api/settings', form.value)
     ElMessage.success('设置已保存')
     await loadStatus()
+    emit('settings-saved')
     visible.value = false
   } catch (e) {
     ElMessage.error('保存失败: ' + e.message)
