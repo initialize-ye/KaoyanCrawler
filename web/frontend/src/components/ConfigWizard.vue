@@ -14,8 +14,9 @@
           <el-form-item label="学校名称" required>
             <el-input v-model="form.name" placeholder="如：清华大学" />
           </el-form-item>
-          <el-form-item label="学校代码" required>
-            <el-input v-model="form.code" placeholder="如：tsinghua（小写拼音）" />
+          <el-form-item label="学校代码">
+            <el-input v-model="form.code" placeholder="自动生成，也可手动修改" />
+            <div class="form-tip">用于配置文件名，输入学校名称后自动生成</div>
           </el-form-item>
           <el-form-item label="研究生院URL" required>
             <el-input v-model="form.url" placeholder="如：https://yz.tsinghua.edu.cn" />
@@ -166,6 +167,30 @@ import { ref, computed, watch } from 'vue'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 
+// 常见985/211院校名称 -> 拼音代码映射
+const UNIVERSITY_CODE_MAP = {
+  '北京大学': 'pku', '清华大学': 'tsinghua', '中国人民大学': 'ruc',
+  '北京航空航天大学': 'buaa', '北京理工大学': 'bit', '北京师范大学': 'bnu',
+  '中央民族大学': 'muc', '中国农业大学': 'cau', '天津大学': 'tju',
+  '南开大学': 'nankai', '大连理工大学': 'dlut', '东北大学': 'neu',
+  '吉林大学': 'jlu', '哈尔滨工业大学': 'hit', '复旦大学': 'fudan',
+  '上海交通大学': 'sjtu', '同济大学': 'tongji', '华东师范大学': 'ecnu',
+  '南京大学': 'nju', '东南大学': 'seu', '浙江大学': 'zju',
+  '中国科学技术大学': 'ustc', '厦门大学': 'xmu', '山东大学': 'sdu',
+  '中国海洋大学': 'ouc', '武汉大学': 'whu', '华中科技大学': 'hust',
+  '中南大学': 'csu', '湖南大学': 'hnu', '国防科技大学': 'nudt',
+  '中山大学': 'sysu', '华南理工大学': 'scut', '四川大学': 'scu',
+  '电子科技大学': 'uestc', '重庆大学': 'cqu', '西安交通大学': 'xjtu',
+  '西北工业大学': 'nwpu', '兰州大学': 'lzu', '西北农林科技大学': 'nwafu',
+}
+
+const generateCode = (name) => {
+  // 优先从映射表查找
+  if (UNIVERSITY_CODE_MAP[name]) return UNIVERSITY_CODE_MAP[name]
+  // 简单处理：去掉"大学"等后缀，用名称前两个字的unicode作为临时code
+  return name.replace(/大学|学院|学校/g, '').slice(0, 4) || 'unknown'
+}
+
 const visible = ref(false)
 const step = ref(0)
 const discovering = ref(false)
@@ -173,6 +198,11 @@ const previewing = ref(false)
 const saving = ref(false)
 
 const form = ref({ name: '', code: '', url: '' })
+
+// 监听学校名称变化，自动生成代码
+watch(() => form.value.name, (newName) => {
+  if (newName) form.value.code = generateCode(newName)
+})
 const discoveredLinks = ref({})
 const selectedAdmissionLink = ref('')
 const selectedCatalogLink = ref('')
@@ -191,7 +221,7 @@ const hasAnyLink = computed(() => {
 })
 
 const canProceed = computed(() => {
-  if (step.value === 0) return form.value.name && form.value.code && form.value.url
+  if (step.value === 0) return form.value.name && form.value.url
   if (step.value === 1) return selectedAdmissionLink.value || selectedCatalogLink.value || targets.value.length > 0
   if (step.value === 2) return selectedTableIndex.value >= 0
   return true
@@ -385,5 +415,11 @@ defineExpose({ open })
 h4 {
   margin: 12px 0 8px;
   color: #303133;
+}
+
+.form-tip {
+  font-size: 12px;
+  color: #909399;
+  margin-top: 4px;
 }
 </style>
