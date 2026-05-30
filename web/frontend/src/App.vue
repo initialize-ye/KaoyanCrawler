@@ -107,23 +107,11 @@
 
     <!-- Toast Notifications -->
     <ToastContainer />
-
-    <!-- Keyboard Shortcuts Help -->
-    <el-dialog v-model="showShortcuts" title="键盘快捷键" width="480px">
-      <div class="shortcuts-list">
-        <div v-for="shortcut in shortcutsList" :key="shortcut.key" class="shortcut-item">
-          <div class="shortcut-keys">
-            <kbd v-for="key in shortcut.keys" :key="key">{{ key }}</kbd>
-          </div>
-          <span class="shortcut-desc">{{ shortcut.description }}</span>
-        </div>
-      </div>
-    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, defineAsyncComponent, onMounted, nextTick } from 'vue'
+import { ref, defineAsyncComponent, onMounted } from 'vue'
 import StatsPanel from './components/StatsPanel.vue'
 import SearchPanel from './components/SearchPanel.vue'
 import AdmissionTable from './components/AdmissionTable.vue'
@@ -131,7 +119,6 @@ import SubjectTable from './components/SubjectTable.vue'
 import RetestRulesTable from './components/RetestRulesTable.vue'
 import ScoreLinesTable from './components/ScoreLinesTable.vue'
 import ToastContainer from './components/ToastContainer.vue'
-import { useKeyboard } from './composables/useKeyboard'
 import { useToast } from './composables/useToast'
 
 const AIExtractor = defineAsyncComponent(() => import('./components/AIExtractor.vue'))
@@ -150,7 +137,6 @@ const imageExtractor = ref(null)
 const settingsDialog = ref(null)
 const dataMode = ref('admission')
 const searchQuery = ref('')
-const showShortcuts = ref(false)
 
 const tabs = [
   { label: '录取数据', value: 'admission', icon: 'people' },
@@ -158,50 +144,6 @@ const tabs = [
   { label: '复试细则', value: 'rules', icon: 'description' },
   { label: '分数线', value: 'score_lines', icon: 'analytics' },
 ]
-
-const shortcutsList = [
-  { keys: ['Ctrl', 'K'], description: '聚焦搜索框' },
-  { keys: ['Ctrl', 'N'], description: '开始新的采集' },
-  { keys: ['Ctrl', 'R'], description: '刷新数据' },
-  { keys: ['Ctrl', 'E'], description: '导出数据' },
-  { keys: ['?'], description: '显示快捷键帮助' },
-  { keys: ['1-4'], description: '切换标签页' },
-  { keys: ['Esc'], description: '关闭对话框' },
-]
-
-// 键盘快捷键
-useKeyboard({
-  'ctrl+k': () => {
-    const input = document.querySelector('.google-search__input')
-    if (input) input.focus()
-  },
-  'ctrl+n': () => {
-    aiExtractor.value?.open()
-  },
-  'ctrl+r': (e) => {
-    e.preventDefault()
-    refreshAll()
-    showToast('数据已刷新')
-  },
-  'escape': () => {
-    showShortcuts.value = false
-  },
-  '?': () => {
-    showShortcuts.value = !showShortcuts.value
-  },
-  '1': () => {
-    dataMode.value = 'admission'
-  },
-  '2': () => {
-    dataMode.value = 'subject'
-  },
-  '3': () => {
-    dataMode.value = 'rules'
-  },
-  '4': () => {
-    dataMode.value = 'score_lines'
-  },
-})
 
 const toggleSidebar = () => {
   // TODO: Implement sidebar toggle
@@ -684,49 +626,6 @@ onMounted(() => {
 
 .google-content {
   animation: google-fade-in 0.3s ease-out;
-}
-
-/* ── Keyboard Shortcuts Dialog ── */
-.shortcuts-list {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.shortcut-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  background: var(--google-gray-50);
-  border-radius: var(--google-radius-sm);
-}
-
-.shortcut-keys {
-  display: flex;
-  gap: 8px;
-}
-
-.shortcut-keys kbd {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 32px;
-  height: 28px;
-  padding: 0 8px;
-  background: var(--google-surface);
-  border: 1px solid var(--google-gray-300);
-  border-radius: 6px;
-  font-family: var(--google-font-roboto);
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--google-text-primary);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
-.shortcut-desc {
-  font-size: 14px;
-  color: var(--google-text-secondary);
 }
 
 /* ── Loading States ── */
