@@ -214,6 +214,92 @@ async def delete_score_line(line_id: int):
     return {"status": "ok", "message": "已删除"}
 
 
+# ========== 数据导出 API ==========
+
+@app.get("/api/export/admissions")
+async def export_admissions(
+    university: str = Query(None, description="学校名称"),
+    year: int = Query(None, description="年份"),
+    format: str = Query("json", description="导出格式: json/csv"),
+):
+    """导出录取数据。"""
+    db = get_db()
+    records, _ = await db.query_admissions(
+        university=university, year=year, page=1, page_size=100000,
+    )
+
+    if format == "csv":
+        import csv
+        import io
+        output = io.StringIO()
+        if records:
+            writer = csv.DictWriter(output, fieldnames=records[0].keys())
+            writer.writeheader()
+            writer.writerows(records)
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=admissions.csv"},
+        )
+    return {"data": records, "total": len(records)}
+
+
+@app.get("/api/export/subjects")
+async def export_subjects(
+    university: str = Query(None, description="学校名称"),
+    year: int = Query(None, description="年份"),
+    format: str = Query("json", description="导出格式: json/csv"),
+):
+    """导出招生目录数据。"""
+    db = get_db()
+    records, _ = await db.query_subjects(
+        university=university, year=year, page=1, page_size=100000,
+    )
+
+    if format == "csv":
+        import csv
+        import io
+        output = io.StringIO()
+        if records:
+            writer = csv.DictWriter(output, fieldnames=records[0].keys())
+            writer.writeheader()
+            writer.writerows(records)
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=subjects.csv"},
+        )
+    return {"data": records, "total": len(records)}
+
+
+@app.get("/api/export/score-lines")
+async def export_score_lines(
+    university: str = Query(None, description="学校名称"),
+    year: int = Query(None, description="年份"),
+    format: str = Query("json", description="导出格式: json/csv"),
+):
+    """导出分数线数据。"""
+    db = get_db()
+    records, _ = await db.query_score_lines(
+        university=university, year=year, page=1, page_size=100000,
+    )
+
+    if format == "csv":
+        import csv
+        import io
+        output = io.StringIO()
+        if records:
+            writer = csv.DictWriter(output, fieldnames=records[0].keys())
+            writer.writeheader()
+            writer.writerows(records)
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=score_lines.csv"},
+        )
+    return {"data": records, "total": len(records)}
+
+
 class BatchDeleteRequest(BaseModel):
     ids: list[int]
 

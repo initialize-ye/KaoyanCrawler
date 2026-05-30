@@ -49,6 +49,16 @@
           </template>
         </el-input>
       </el-form-item>
+      <el-form-item v-if="modeProxy === 'score_lines'">
+        <template #label>
+          <span class="form-label">学科门类</span>
+        </template>
+        <el-input v-model="form.discipline" placeholder="学科门类" clearable class="search-input--major">
+          <template #prefix>
+            <el-icon><Collection /></el-icon>
+          </template>
+        </el-input>
+      </el-form-item>
       <el-form-item class="search-actions">
         <el-button type="primary" @click="onSearch" :icon="Search">查询</el-button>
         <el-button @click="onReset" :icon="RefreshRight">重置</el-button>
@@ -70,6 +80,7 @@ const modeOptions = [
   { label: '录取数据', value: 'admission' },
   { label: '招生目录', value: 'subject' },
   { label: '复试细则', value: 'rules' },
+  { label: '分数线', value: 'score_lines' },
 ]
 
 const modeProxy = computed({
@@ -83,6 +94,7 @@ const form = reactive({
   major: '',
   list_type: '',
   department: '',
+  discipline: '',
 })
 
 const onSearch = () => {
@@ -97,6 +109,9 @@ const onSearch = () => {
   if ((modeProxy.value === 'subject' || modeProxy.value === 'rules') && form.department) {
     params.department = form.department.trim()
   }
+  if (modeProxy.value === 'score_lines' && form.discipline) {
+    params.discipline = form.discipline.trim()
+  }
   emit('search', params)
 }
 
@@ -106,6 +121,7 @@ const onReset = () => {
   form.major = ''
   form.list_type = ''
   form.department = ''
+  form.discipline = ''
   emit('search', {})
 }
 </script>

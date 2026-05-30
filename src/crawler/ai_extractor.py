@@ -218,29 +218,57 @@ class AIExtractor:
         provider_config = AI_PROVIDERS.get(provider, {})
         self.base_url = base_url or provider_config.get("base_url", "")
         self.model = model or provider_config.get("model", "")
+        # AI响应缓存 {content_hash: (result, timestamp)}
+        self._cache: dict[str, tuple[dict, float]] = {}
+        self._cache_ttl = 3600  # 缓存1小时
+
+    def _strip_html(self, content: str) -> str:
+        """去除HTML标签、脚本、样式，保留文本内容。"""
+        # 移除script和style标签及其内容
+        content = re.sub(r'<script[\s\S]*?</script>', '', content, flags=re.IGNORECASE)
+        content = re.sub(r'<style[\s\S]*?</style>', '', content, flags=re.IGNORECASE)
+        # 移除HTML注释
+        content = re.sub(r'<!--[\s\S]*?-->', '', content)
+        # 移除导航、页脚、侧边栏等非主要内容
+        content = re.sub(r'<nav[\s\S]*?</nav>', '', content, flags=re.IGNORECASE)
+        content = re.sub(r'<footer[\s\S]*?</footer>', '', content, flags=re.IGNORECASE)
+        content = re.sub(r'<aside[\s\S]*?</aside>', '', content, flags=re.IGNORECASE)
+        # 将块级标签转换为换行
+        content = re.sub(r'<(br|hr|/p|/div|/tr|/li)[\s/]*>', '\n', content, flags=re.IGNORECASE)
+        # 移除所有剩余HTML标签
+        content = re.sub(r'<[^>]+>', ' ', content)
+        # 清理多余空白
+        content = re.sub(r'\s+', ' ', content)
+        content = re.sub(r'\n\s*\n', '\n', content)
+        return content.strip()
 
     def _truncate_content(self, content: str, limit: int = 15000) -> str:
-        """智能截断：优先保留表格内容。"""
-        if len(content) <= limit:
-            return content
+        """智能截断：优先保留表格内容，预处理HTML减少token。"""
+        # 先进行HTML预处理
+        stripped = self._strip_html(content)
+
+        if len(stripped) <= limit:
+            return stripped
 
         # 尝试提取所有<table>内容
         tables = re.findall(r'<table[\s\S]*?</table>', content, re.IGNORECASE)
         if tables:
             table_content = "\n".join(tables)
-            if len(table_content) <= limit:
-                return table_content
+            table_stripped = self._strip_html(table_content)
+            if len(table_stripped) <= limit:
+                return table_stripped
             # 表格总和超限，按表格边界截断
             result = ""
             for t in tables:
-                if len(result) + len(t) > limit:
+                t_stripped = self._strip_html(t)
+                if len(result) + len(t_stripped) > limit:
                     break
-                result += t + "\n"
+                result += t_stripped + "\n"
             if result:
                 return result
 
         # 无表格或表格太大，回退到硬截断
-        return content[:limit]
+        return stripped[:limit]
 
     async def extract_admission_list(self, url: str, content: str, major: str = "") -> dict[str, Any]:
         """从页面内容中提取录取名单。"""
@@ -395,6 +423,34 @@ class AIExtractor:
             logger.error(f"推断学院URL失败: {e}")
             return []
 
+    def _get_cache_key(self, prompt: str) -> str:
+        """生成缓存键。"""
+        import hashlib
+        return hashlib.md5(prompt.encode()).hexdigest()
+
+    def _get_cached(self, key: str) -> dict | None:
+        """获取缓存结果。"""
+        import time
+        if key in self._cache:
+            result, timestamp = self._cache[key]
+            if time.time() - timestamp < self._cache_ttl:
+                logger.debug(f"命中AI缓存: {key[:8]}...")
+                return result
+            else:
+                del self._cache[key]
+        return None
+
+    def _set_cache(self, key: str, result: dict):
+        """设置缓存。"""
+        import time
+        self._cache[key] = (result, time.time())
+        # 清理过期缓存
+        if len(self._cache) > 100:
+            now = time.time()
+            expired = [k for k, v in self._cache.items() if now - v[1] > self._cache_ttl]
+            for k in expired:
+                del self._cache[k]
+
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=10),
@@ -402,16 +458,29 @@ class AIExtractor:
         reraise=True,
     )
     async def _call_llm(self, prompt: str, max_tokens: int = 4096) -> dict[str, Any]:
-        """调用LLM API。"""
+        """调用LLM API（支持缓存）。"""
         if not self.api_key:
             return {"found": False, "error": "API Key未配置"}
         if not self.base_url:
             return {"found": False, "error": f"Provider {self.provider} 的API地址未配置"}
+
+        # 检查缓存
+        cache_key = self._get_cache_key(prompt)
+        cached = self._get_cached(cache_key)
+        if cached:
+            return cached
+
         try:
             if self.provider == "claude":
-                return await self._call_claude(prompt, max_tokens=max_tokens)
+                result = await self._call_claude(prompt, max_tokens=max_tokens)
             else:
-                return await self._call_openai_compatible(prompt, max_tokens=max_tokens)
+                result = await self._call_openai_compatible(prompt, max_tokens=max_tokens)
+
+            # 缓存成功结果
+            if result.get("found"):
+                self._set_cache(cache_key, result)
+
+            return result
         except Exception as e:
             error_msg = str(e) or repr(e) or f"未知错误 ({type(e).__name__})"
             logger.error(f"LLM调用失败 [{self.provider}] [{self.model}]: {error_msg}")

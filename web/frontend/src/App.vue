@@ -39,7 +39,8 @@
               <div class="table-container">
                 <AdmissionTable v-if="dataMode === 'admission'" ref="admissionTable" />
                 <SubjectTable v-else-if="dataMode === 'subject'" ref="subjectTable" />
-                <RetestRulesTable v-else ref="rulesTable" />
+                <RetestRulesTable v-else-if="dataMode === 'rules'" ref="rulesTable" />
+                <ScoreLinesTable v-else ref="scoreLinesTable" />
               </div>
             </div>
           </el-col>
@@ -71,6 +72,7 @@ import SearchPanel from './components/SearchPanel.vue'
 import AdmissionTable from './components/AdmissionTable.vue'
 import SubjectTable from './components/SubjectTable.vue'
 import RetestRulesTable from './components/RetestRulesTable.vue'
+import ScoreLinesTable from './components/ScoreLinesTable.vue'
 
 const AIExtractor = defineAsyncComponent(() => import('./components/AIExtractor.vue'))
 const ImageExtractor = defineAsyncComponent(() => import('./components/ImageExtractor.vue'))
@@ -80,6 +82,7 @@ const statsPanel = ref(null)
 const admissionTable = ref(null)
 const subjectTable = ref(null)
 const rulesTable = ref(null)
+const scoreLinesTable = ref(null)
 const aiExtractor = ref(null)
 const imageExtractor = ref(null)
 const settingsDialog = ref(null)
@@ -90,6 +93,7 @@ const refreshAll = () => {
   admissionTable.value?.fetchData()
   subjectTable.value?.fetchData()
   rulesTable.value?.fetchData()
+  scoreLinesTable.value?.fetchData()
 }
 
 const handleSearch = (params) => {
@@ -97,8 +101,10 @@ const handleSearch = (params) => {
     admissionTable.value?.fetchData(params)
   } else if (dataMode.value === 'subject') {
     subjectTable.value?.fetchData(params)
-  } else {
+  } else if (dataMode.value === 'rules') {
     rulesTable.value?.fetchData(params)
+  } else {
+    scoreLinesTable.value?.fetchData(params)
   }
 }
 </script>

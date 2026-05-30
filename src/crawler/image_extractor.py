@@ -590,9 +590,12 @@ class OCREngine:
 
         all_texts: list[str] = []
         all_results: list[tuple[str, list[OCRResult]]] = []
+        high_confidence_count = 0
+        HIGH_CONFIDENCE_THRESHOLD = 0.95
+        MIN_PASSES_FOR_EARLY_EXIT = 2
 
         # 对每个预处理流水线运行 OCR
-        for pipe in pipelines:
+        for i, pipe in enumerate(pipelines):
             try:
                 arr = preprocess_image(image_bytes, pipe)
             except Exception as e:
@@ -605,6 +608,11 @@ class OCREngine:
                 if text.strip():
                     all_texts.append(text)
                     all_results.append((f"rapid/{pipe.name}", results))
+                    # 检查置信度
+                    if results:
+                        avg_conf = sum(r.confidence for r in results) / len(results)
+                        if avg_conf >= HIGH_CONFIDENCE_THRESHOLD:
+                            high_confidence_count += 1
 
             # EasyOCR
             if self._easyocr_ok:
@@ -612,6 +620,16 @@ class OCREngine:
                 if text.strip():
                     all_texts.append(text)
                     all_results.append((f"easyocr/{pipe.name}", results))
+                    # 检查置信度
+                    if results:
+                        avg_conf = sum(r.confidence for r in results) / len(results)
+                        if avg_conf >= HIGH_CONFIDENCE_THRESHOLD:
+                            high_confidence_count += 1
+
+            # 提前终止：如果已经有足够的高置信度结果
+            if high_confidence_count >= MIN_PASSES_FOR_EARLY_EXIT and i >= 1:
+                logger.info(f"OCR 提前终止: 已获得 {high_confidence_count} 个高置信度结果")
+                break
 
         if not all_texts:
             return "", []
