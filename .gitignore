@@ -36,3 +36,5 @@ logs/
 # Env
 .env
 .env.local
+
+data/settings.json

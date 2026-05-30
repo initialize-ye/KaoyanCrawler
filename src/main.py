@@ -108,7 +108,7 @@ def stats():
 async def _stats():
     db = Database(DB_PATH)
     s = await db.get_stats()
-    print(f"数据库统计:")
+    print("数据库统计:")
     print(f"  学校数量: {s['universities']}")
     print(f"  录取记录: {s['admission_records']}")
     print(f"  科目记录: {s['exam_subjects']}")

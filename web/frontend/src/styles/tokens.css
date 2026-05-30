@@ -1,0 +1,95 @@
+/* Design Tokens — KaoyanCrawler
+   工业/实用主义风格：高效、清晰、专业 */
+
+:root {
+  /* ===== Color Palette ===== */
+
+  /* 主色 — 深蓝灰，专业沉稳 */
+  --color-blue-50: #f0f4f8;
+  --color-blue-100: #d9e2ec;
+  --color-blue-200: #bcccdc;
+  --color-blue-500: #486581;
+  --color-blue-600: #334e68;
+  --color-blue-700: #243b53;
+  --color-blue-800: #102a43;
+
+  /* Teal — 数据强调 */
+  --color-teal-50: #f0fdfa;
+  --color-teal-500: #0d9488;
+
+  /* Amber — 警告、中等分数 */
+  --color-amber-50: #fffbeb;
+  --color-amber-500: #d97706;
+
+  /* Green — 成功、高分 */
+  --color-green-50: #f0fdf4;
+  --color-green-500: #059669;
+
+  /* Red — 错误 */
+  --color-red-50: #fef2f2;
+  --color-red-500: #dc2626;
+
+  /* Slate — 表面 */
+  --color-slate-50: #f7f8fa;
+  --color-slate-100: #eef1f5;
+
+  /* ===== Semantic Colors ===== */
+
+  /* 头部 — 纯色，无渐变 */
+  --gradient-header: var(--color-blue-800);
+
+  /* 按钮 */
+  --gradient-primary-btn: var(--color-blue-600);
+  --gradient-primary-btn-hover: var(--color-blue-700);
+
+  /* 表面 */
+  --surface-tinted: var(--color-slate-50);
+  --surface-card: #fff;
+  --border-card: var(--color-blue-100);
+
+  /* Score thresholds */
+  --score-high: var(--color-green-500);
+  --score-mid: var(--color-amber-500);
+  --score-low: var(--el-text-color-secondary);
+
+  /* Status colors */
+  --status-admitted: var(--color-green-500);
+  --status-waiting: var(--color-amber-500);
+
+  /* Result accent */
+  --result-accent: var(--color-green-500);
+
+  /* ===== Spacing Scale ===== */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+
+  /* ===== Border Radius ===== */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  /* ===== Typography ===== */
+  --font-size-xs: 12px;
+  --font-size-sm: 13px;
+  --font-size-base: 14px;
+  --font-size-lg: 18px;
+  --font-size-xl: 20px;
+  --font-size-2xl: 22px;
+  --font-size-3xl: 28px;
+
+  /* ===== Breakpoints (for reference, use via composable) ===== */
+  /* --bp-mobile: 768px; */
+  /* --bp-desktop: 1400px; */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

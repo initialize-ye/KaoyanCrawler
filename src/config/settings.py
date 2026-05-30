@@ -27,10 +27,10 @@ AI_PROVIDERS = {
     },
     "deepseek": {
         "name": "DeepSeek",
-        "base_url": "https://api.deepseek.com/v1/chat/completions",
-        "model": "deepseek-chat",
+        "base_url": "https://api.deepseek.com/chat/completions",
+        "model": "deepseek-v4-flash",
         "key_placeholder": "sk-...",
-        "description": "DeepSeek V3模型，性价比高",
+        "description": "DeepSeek V4模型，支持 deepseek-v4-flash / deepseek-v4-pro",
     },
     "gemini": {
         "name": "Google Gemini",
