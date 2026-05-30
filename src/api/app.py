@@ -214,6 +214,16 @@ async def delete_score_line(line_id: int):
     return {"status": "ok", "message": "已删除"}
 
 
+@app.delete("/api/retest-rules/{rule_id}")
+async def delete_retest_rule(rule_id: int):
+    """删除复试细则记录。"""
+    db = get_db()
+    async with aiosqlite.connect(db.db_path) as conn:
+        await conn.execute("DELETE FROM retest_rules WHERE id = ?", (rule_id,))
+        await conn.commit()
+    return {"status": "ok", "message": "已删除"}
+
+
 # ========== 数据导出 API ==========
 
 @app.get("/api/export/admissions")
