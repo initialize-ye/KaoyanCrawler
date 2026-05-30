@@ -1,8 +1,5 @@
 <template>
   <div class="search-panel">
-    <div class="search-top">
-      <el-segmented v-model="modeProxy" :options="modeOptions" size="default" />
-    </div>
     <el-form :inline="!isMobile" :model="form" @submit.prevent="onSearch" class="search-form">
       <el-form-item>
         <template #label>
@@ -76,13 +73,6 @@ const { isMobile } = useResponsive()
 const emit = defineEmits(['search', 'update:mode'])
 const props = defineProps({ mode: { type: String, default: 'admission' } })
 
-const modeOptions = [
-  { label: '录取数据', value: 'admission' },
-  { label: '招生目录', value: 'subject' },
-  { label: '复试细则', value: 'rules' },
-  { label: '分数线', value: 'score_lines' },
-]
-
 const modeProxy = computed({
   get: () => props.mode,
   set: (val) => emit('update:mode', val),
@@ -134,31 +124,6 @@ const onReset = () => {
   border-radius: 12px;
   border: 1px solid var(--el-border-color-lighter);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
-}
-
-.search-top {
-  margin-bottom: 20px;
-  display: flex;
-  justify-content: center;
-}
-
-/* 模式切换器样式 */
-.search-top :deep(.el-segmented) {
-  background: var(--el-fill-color-lighter);
-  border-radius: 8px;
-  padding: 4px;
-}
-
-.search-top :deep(.el-segmented__item) {
-  border-radius: 6px;
-  font-weight: 500;
-  transition: all 0.2s;
-}
-
-.search-top :deep(.el-segmented__item.is-active) {
-  background: linear-gradient(135deg, var(--el-color-primary) 0%, var(--el-color-primary-dark-2) 100%);
-  color: #fff;
-  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.3);
 }
 
 .form-label {
