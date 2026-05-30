@@ -13,6 +13,7 @@ import yaml
 from fastapi import FastAPI, Query, UploadFile, File
 from loguru import logger
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -35,8 +36,11 @@ CONFIGS_DIR = BASE_DIR / "configs"
 app = FastAPI(
     title="KaoyanCrawler API",
     description="考研数据采集系统 API",
-    version="0.1.0",
+    version="0.2.0",
 )
+
+# 添加GZip压缩中间件
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 app.add_middleware(
     CORSMiddleware,
@@ -46,6 +50,24 @@ app.add_middleware(
 )
 
 html_parser = HTMLParser()
+
+
+@app.get("/api/health")
+async def health_check():
+    """健康检查端点。"""
+    db = get_db()
+    try:
+        stats = await db.get_stats()
+        return {
+            "status": "healthy",
+            "database": "connected",
+            "records": sum(stats.values()),
+        }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "error": str(e),
+        }
 
 
 @app.on_event("startup")
@@ -90,19 +112,16 @@ async def get_admissions(
 ):
     """查询录取记录。"""
     db = get_db()
-    records = await db.query_admissions(
-        university=university, year=year, major=major, list_type=list_type
+    records, total = await db.query_admissions(
+        university=university, year=year, major=major, list_type=list_type,
+        page=page, page_size=page_size,
     )
-
-    total = len(records)
-    start = (page - 1) * page_size
-    end = start + page_size
 
     return {
         "total": total,
         "page": page,
         "page_size": page_size,
-        "data": records[start:end],
+        "data": records,
     }
 
 
@@ -127,17 +146,15 @@ async def get_subjects(
 ):
     """查询考试科目。"""
     db = get_db()
-    records = await db.query_subjects(
-        university=university, year=year, major_name=major_name, department=department
+    records, total = await db.query_subjects(
+        university=university, year=year, major_name=major_name, department=department,
+        page=page, page_size=page_size,
     )
-    total = len(records)
-    start = (page - 1) * page_size
-    end = start + page_size
     return {
         "total": total,
         "page": page,
         "page_size": page_size,
-        "data": records[start:end],
+        "data": records,
     }
 
 
@@ -152,17 +169,15 @@ async def get_retest_rules(
 ):
     """查询复试细则。"""
     db = get_db()
-    records = await db.query_retest_rules(
-        university=university, year=year, department=department, major=major
+    records, total = await db.query_retest_rules(
+        university=university, year=year, department=department, major=major,
+        page=page, page_size=page_size,
     )
-    total = len(records)
-    start = (page - 1) * page_size
-    end = start + page_size
     return {
         "total": total,
         "page": page,
         "page_size": page_size,
-        "data": records[start:end],
+        "data": records,
     }
 
 
@@ -177,17 +192,15 @@ async def get_score_lines(
 ):
     """查询分数线。"""
     db = get_db()
-    records = await db.query_score_lines(
-        university=university, year=year, category=category, discipline=discipline
+    records, total = await db.query_score_lines(
+        university=university, year=year, category=category, discipline=discipline,
+        page=page, page_size=page_size,
     )
-    total = len(records)
-    start = (page - 1) * page_size
-    end = start + page_size
     return {
         "total": total,
         "page": page,
         "page_size": page_size,
-        "data": records[start:end],
+        "data": records,
     }
 
 
@@ -370,12 +383,20 @@ async def update_subject(subject_id: int, data: dict):
 
 @app.get("/api/universities")
 async def get_universities():
-    """获取已采集的学校列表。"""
+    """获取已采集的学校列表（从所有表中查询）。"""
     db = get_db()
     async with aiosqlite.connect(db.db_path) as conn:
-        cursor = await conn.execute(
-            "SELECT DISTINCT university FROM admission_records ORDER BY university"
-        )
+        cursor = await conn.execute("""
+            SELECT DISTINCT university FROM (
+                SELECT university FROM admission_records
+                UNION
+                SELECT university FROM exam_subjects
+                UNION
+                SELECT university FROM retest_rules
+                UNION
+                SELECT university FROM score_lines
+            ) ORDER BY university
+        """)
         rows = await cursor.fetchall()
         universities = [r[0] for r in rows]
     return {"universities": universities}

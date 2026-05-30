@@ -81,12 +81,16 @@ CREATE TABLE IF NOT EXISTS score_lines (
 CREATE INDEX IF NOT EXISTS idx_admission_university ON admission_records(university);
 CREATE INDEX IF NOT EXISTS idx_admission_year ON admission_records(year);
 CREATE INDEX IF NOT EXISTS idx_admission_major ON admission_records(major);
+CREATE INDEX IF NOT EXISTS idx_admission_uni_year ON admission_records(university, year);
 CREATE INDEX IF NOT EXISTS idx_subjects_university ON exam_subjects(university);
 CREATE INDEX IF NOT EXISTS idx_subjects_year ON exam_subjects(year);
+CREATE INDEX IF NOT EXISTS idx_subjects_uni_year ON exam_subjects(university, year);
 CREATE INDEX IF NOT EXISTS idx_rules_university ON retest_rules(university);
 CREATE INDEX IF NOT EXISTS idx_rules_year ON retest_rules(year);
+CREATE INDEX IF NOT EXISTS idx_rules_uni_year ON retest_rules(university, year);
 CREATE INDEX IF NOT EXISTS idx_scorelines_university ON score_lines(university);
 CREATE INDEX IF NOT EXISTS idx_scorelines_year ON score_lines(year);
+CREATE INDEX IF NOT EXISTS idx_scorelines_uni_year ON score_lines(university, year);
 """
 
 
@@ -177,8 +181,10 @@ class Database:
         year: int | None = None,
         major: str | None = None,
         list_type: str | None = None,
-    ) -> list[dict]:
-        """查询录取记录。"""
+        page: int = 1,
+        page_size: int = 50,
+    ) -> tuple[list[dict], int]:
+        """查询录取记录（支持分页）。"""
         conditions = []
         params = []
 
@@ -196,13 +202,21 @@ class Database:
             params.append(list_type)
 
         where = " AND ".join(conditions) if conditions else "1=1"
-        sql = f"SELECT * FROM admission_records WHERE {where} ORDER BY university, major"
 
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
-            async with db.execute(sql, params) as cursor:
+
+            # 获取总数
+            count_sql = f"SELECT COUNT(*) FROM admission_records WHERE {where}"
+            async with db.execute(count_sql, params) as cursor:
+                total = (await cursor.fetchone())[0]
+
+            # 分页查询
+            offset = (page - 1) * page_size
+            sql = f"SELECT * FROM admission_records WHERE {where} ORDER BY university, major LIMIT ? OFFSET ?"
+            async with db.execute(sql, params + [page_size, offset]) as cursor:
                 rows = await cursor.fetchall()
-                return [dict(row) for row in rows]
+                return [dict(row) for row in rows], total
 
     async def query_subjects(
         self,
@@ -210,8 +224,10 @@ class Database:
         year: int | None = None,
         major_name: str | None = None,
         department: str | None = None,
-    ) -> list[dict]:
-        """查询考试科目。"""
+        page: int = 1,
+        page_size: int = 50,
+    ) -> tuple[list[dict], int]:
+        """查询考试科目（支持分页）。"""
         conditions = []
         params = []
 
@@ -229,13 +245,21 @@ class Database:
             params.append(f"%{department}%")
 
         where = " AND ".join(conditions) if conditions else "1=1"
-        sql = f"SELECT * FROM exam_subjects WHERE {where} ORDER BY university, department, major_code"
 
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
-            async with db.execute(sql, params) as cursor:
+
+            # 获取总数
+            count_sql = f"SELECT COUNT(*) FROM exam_subjects WHERE {where}"
+            async with db.execute(count_sql, params) as cursor:
+                total = (await cursor.fetchone())[0]
+
+            # 分页查询
+            offset = (page - 1) * page_size
+            sql = f"SELECT * FROM exam_subjects WHERE {where} ORDER BY university, department, major_code LIMIT ? OFFSET ?"
+            async with db.execute(sql, params + [page_size, offset]) as cursor:
                 rows = await cursor.fetchall()
-                return [dict(row) for row in rows]
+                return [dict(row) for row in rows], total
 
     async def get_stats(self) -> dict:
         """获取数据库统计信息。"""
@@ -290,8 +314,10 @@ class Database:
         year: int | None = None,
         department: str | None = None,
         major: str | None = None,
-    ) -> list[dict]:
-        """查询复试细则。"""
+        page: int = 1,
+        page_size: int = 50,
+    ) -> tuple[list[dict], int]:
+        """查询复试细则（支持分页）。"""
         conditions = []
         params = []
 
@@ -309,13 +335,21 @@ class Database:
             params.append(f"%{major}%")
 
         where = " AND ".join(conditions) if conditions else "1=1"
-        sql = f"SELECT * FROM retest_rules WHERE {where} ORDER BY university, department"
 
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
-            async with db.execute(sql, params) as cursor:
+
+            # 获取总数
+            count_sql = f"SELECT COUNT(*) FROM retest_rules WHERE {where}"
+            async with db.execute(count_sql, params) as cursor:
+                total = (await cursor.fetchone())[0]
+
+            # 分页查询
+            offset = (page - 1) * page_size
+            sql = f"SELECT * FROM retest_rules WHERE {where} ORDER BY university, department LIMIT ? OFFSET ?"
+            async with db.execute(sql, params + [page_size, offset]) as cursor:
                 rows = await cursor.fetchall()
-                return [dict(row) for row in rows]
+                return [dict(row) for row in rows], total
 
     async def insert_score_lines(self, lines: list[ScoreLine]):
         """批量插入分数线，冲突时忽略。"""
@@ -344,8 +378,10 @@ class Database:
         year: int | None = None,
         category: str | None = None,
         discipline: str | None = None,
-    ) -> list[dict]:
-        """查询分数线。"""
+        page: int = 1,
+        page_size: int = 50,
+    ) -> tuple[list[dict], int]:
+        """查询分数线（支持分页）。"""
         conditions = []
         params = []
 
@@ -363,10 +399,18 @@ class Database:
             params.append(f"%{discipline}%")
 
         where = " AND ".join(conditions) if conditions else "1=1"
-        sql = f"SELECT * FROM score_lines WHERE {where} ORDER BY university, category, discipline"
 
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
-            async with db.execute(sql, params) as cursor:
+
+            # 获取总数
+            count_sql = f"SELECT COUNT(*) FROM score_lines WHERE {where}"
+            async with db.execute(count_sql, params) as cursor:
+                total = (await cursor.fetchone())[0]
+
+            # 分页查询
+            offset = (page - 1) * page_size
+            sql = f"SELECT * FROM score_lines WHERE {where} ORDER BY university, category, discipline LIMIT ? OFFSET ?"
+            async with db.execute(sql, params + [page_size, offset]) as cursor:
                 rows = await cursor.fetchall()
-                return [dict(row) for row in rows]
+                return [dict(row) for row in rows], total
