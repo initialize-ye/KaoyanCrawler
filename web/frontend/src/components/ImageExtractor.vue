@@ -55,40 +55,48 @@
         </el-button>
       </div>
 
-      <!-- 进度条 -->
-      <el-progress
-        :percentage="progressPercent"
-        :status="progressStatus"
-        :stroke-width="12"
-        :format="progressFormat"
-        class="main-progress"
-      />
+      <!-- 进度概览 -->
+      <div class="crawl-stats">
+        <div class="crawl-stats__items">
+          <div class="crawl-stats__item">
+            <div class="crawl-stats__val">{{ progressPercent }}%</div>
+            <div class="crawl-stats__label">识别进度</div>
+          </div>
+          <div class="crawl-stats__item">
+            <div class="crawl-stats__val">{{ steps.length }}</div>
+            <div class="crawl-stats__label">处理步骤</div>
+          </div>
+          <div class="crawl-stats__item">
+            <div class="crawl-stats__val">{{ completedSteps }}</div>
+            <div class="crawl-stats__label">已完成</div>
+          </div>
+        </div>
+        <div class="crawl-stats__bar">
+          <div class="crawl-stats__fill" :style="{ width: progressPercent + '%' }"></div>
+        </div>
+      </div>
 
-      <!-- 步骤列表 -->
-      <div class="steps-list">
-        <div
-          v-for="(step, index) in steps"
-          :key="index"
-          class="step-item"
-          :class="{
-            'step-running': step.status === 'running',
-            'step-done': step.status === 'done',
-            'step-warn': step.status === 'warn',
-            'step-error': step.status === 'error'
-          }"
-        >
-          <div class="step-icon">
-            <el-icon v-if="step.status === 'running'" class="is-loading"><Loading /></el-icon>
+      <!-- 时间线 -->
+      <div class="timeline" role="list" aria-label="识别进度">
+        <div v-for="(step, i) in steps" :key="i" class="tl-item" :class="'tl-item--' + step.status" role="listitem"
+          :aria-current="step.status === 'running' ? 'step' : undefined">
+          <div class="tl-dot" :aria-label="step.status === 'done' ? '完成' : step.status === 'running' ? '进行中' : step.status === 'error' ? '失败' : '等待'">
+            <span v-if="step.status === 'running'" class="tl-pulse"></span>
+            <span v-if="step.status === 'running'" class="tl-spin"></span>
             <el-icon v-else-if="step.status === 'done'"><CircleCheckFilled /></el-icon>
-            <el-icon v-else-if="step.status === 'warn'"><WarningFilled /></el-icon>
             <el-icon v-else-if="step.status === 'error'"><CircleCloseFilled /></el-icon>
             <el-icon v-else><MoreFilled /></el-icon>
           </div>
-          <div class="step-content">
-            <div class="step-name">{{ step.name }}</div>
-            <div class="step-detail">{{ step.detail }}</div>
+          <div v-if="i < steps.length - 1" class="tl-line" :class="{ 'tl-line--done': step.status === 'done' }"></div>
+          <div class="tl-body">
+            <div class="tl-head">
+              <span class="tl-title">{{ step.name }}</span>
+              <span v-if="step.status === 'running'" class="tl-tag tl-tag--run">进行中</span>
+              <span v-else-if="step.status === 'done'" class="tl-tag tl-tag--ok">完成</span>
+              <span v-else-if="step.status === 'error'" class="tl-tag tl-tag--err">失败</span>
+            </div>
+            <div v-if="step.detail" class="tl-detail">{{ step.detail }}</div>
           </div>
-          <div class="step-progress">{{ step.progress }}%</div>
         </div>
       </div>
 
@@ -247,6 +255,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
+import { CircleCheckFilled, CircleCloseFilled, MoreFilled, Close, RefreshRight, Link, MagicStick, UploadFilled } from '@element-plus/icons-vue'
 import { useDialog } from '../composables/useDialog'
 
 defineEmits(['open-settings'])
@@ -271,16 +280,13 @@ const steps = ref([])
 
 const STEP_NAMES = {
   init: '初始化引擎',
-  preprocess: '图片预处理',
   ocr: 'OCR 文字提取',
   structure: 'AI 结构化提取',
-  verify: '数据交叉校验',
 }
 
-const progressFormat = (percentage) => {
-  if (percentage >= 100) return '完成'
-  return `${percentage}%`
-}
+const completedSteps = computed(() => {
+  return steps.value.filter(s => s.status === 'done').length
+})
 
 function open() {
   visible.value = true
@@ -558,101 +564,189 @@ defineExpose({ open })
   margin: 0;
 }
 
-.main-progress {
-  margin-bottom: 8px;
-}
-
-.main-progress :deep(.el-progress-bar__outer) {
-  border-radius: 8px;
-}
-
-.main-progress :deep(.el-progress-bar__inner) {
-  border-radius: 8px;
-}
-
-.steps-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.step-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
+/* 进度概览 */
+.crawl-stats {
+  padding: 16px 20px;
   background: var(--el-fill-color-lighter);
   border-radius: 8px;
-  border: 1px solid var(--el-border-color-lighter);
-  transition: all 0.3s;
 }
 
-.step-item.step-running {
-  background: var(--el-color-primary-light-9);
-  border-color: var(--el-color-primary-light-7);
+.crawl-stats__items {
+  display: flex;
+  justify-content: space-around;
+  margin-bottom: 12px;
 }
 
-.step-item.step-done {
-  background: var(--el-color-success-light-9);
-  border-color: var(--el-color-success-light-7);
+.crawl-stats__item {
+  text-align: center;
 }
 
-.step-item.step-warn {
-  background: var(--el-color-warning-light-9);
-  border-color: var(--el-color-warning-light-7);
+.crawl-stats__val {
+  font-size: 24px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--el-text-color-primary);
 }
 
-.step-item.step-error {
-  background: var(--el-color-danger-light-9);
-  border-color: var(--el-color-danger-light-7);
+.crawl-stats__label {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  margin-top: 4px;
 }
 
-.step-icon {
-  font-size: 20px;
+.crawl-stats__bar {
+  height: 4px;
+  background: var(--el-border-color-lighter);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.crawl-stats__fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--el-color-primary), #67c23a);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+/* 时间线 */
+.timeline {
+  margin-top: 20px;
+}
+
+.tl-item {
+  display: flex;
+  gap: 12px;
+  position: relative;
+}
+
+.tl-dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid var(--el-border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+  font-size: 14px;
+  background: var(--el-bg-color);
+  position: relative;
+  z-index: 1;
 }
 
-.step-item.step-running .step-icon {
+.tl-item--done .tl-dot {
+  border-color: #67c23a;
+  color: #67c23a;
+  background: #f0f9eb;
+}
+
+.tl-item--error .tl-dot {
+  border-color: var(--el-color-danger);
+  color: var(--el-color-danger);
+  background: var(--el-color-danger-light-9);
+}
+
+.tl-item--running .tl-dot {
+  border-color: var(--el-color-primary);
+  background: #ecf5ff;
   color: var(--el-color-primary);
 }
 
-.step-item.step-done .step-icon {
-  color: var(--el-color-success);
+.tl-pulse {
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  border: 2px solid var(--el-color-primary);
+  animation: pulse-ring 1.5s ease-out infinite;
+  opacity: 0;
 }
 
-.step-item.step-warn .step-icon {
-  color: var(--el-color-warning);
+@keyframes pulse-ring {
+  0% { transform: scale(0.8); opacity: 0.8; }
+  100% { transform: scale(1.6); opacity: 0; }
 }
 
-.step-item.step-error .step-icon {
-  color: var(--el-color-danger);
+.tl-spin {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--el-color-primary-light-5);
+  border-top-color: var(--el-color-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
 }
 
-.step-content {
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.tl-line {
+  position: absolute;
+  left: 11px;
+  top: 28px;
+  width: 2px;
+  bottom: 0;
+  background: var(--el-border-color-lighter);
+}
+
+.tl-line--done {
+  background: #67c23a;
+}
+
+.tl-item--running .tl-line {
+  background: var(--el-color-primary-light-5);
+}
+
+.tl-body {
   flex: 1;
+  padding-bottom: 20px;
   min-width: 0;
 }
 
-.step-name {
+.tl-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tl-title {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--el-text-color-primary);
-  margin-bottom: 2px;
 }
 
-.step-detail {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.step-progress {
+.tl-tag {
   font-size: 12px;
   font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.tl-tag--run {
+  background: #ecf5ff;
+  color: var(--el-color-primary);
+  animation: blink 2s ease-in-out infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.tl-tag--ok {
+  background: #f0f9eb;
+  color: #67c23a;
+}
+
+.tl-tag--err {
+  background: var(--el-color-danger-light-9);
+  color: var(--el-color-danger);
+}
+
+.tl-detail {
+  font-size: 13px;
   color: var(--el-text-color-secondary);
-  flex-shrink: 0;
+  margin-top: 4px;
+  line-height: 1.5;
 }
 
 .preview-small {
