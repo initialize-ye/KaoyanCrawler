@@ -104,21 +104,41 @@
     <AIExtractor ref="aiExtractor" @open-settings="settingsDialog?.open()" @data-saved="refreshAll" />
     <ImageExtractor ref="imageExtractor" @open-settings="settingsDialog?.open()" />
     <SettingsDialog ref="settingsDialog" @settings-saved="aiExtractor?.checkStatus?.()" />
+
+    <!-- Toast Notifications -->
+    <ToastContainer />
+
+    <!-- Keyboard Shortcuts Help -->
+    <el-dialog v-model="showShortcuts" title="键盘快捷键" width="480px">
+      <div class="shortcuts-list">
+        <div v-for="shortcut in shortcutsList" :key="shortcut.key" class="shortcut-item">
+          <div class="shortcut-keys">
+            <kbd v-for="key in shortcut.keys" :key="key">{{ key }}</kbd>
+          </div>
+          <span class="shortcut-desc">{{ shortcut.description }}</span>
+        </div>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, defineAsyncComponent } from 'vue'
+import { ref, defineAsyncComponent, onMounted, nextTick } from 'vue'
 import StatsPanel from './components/StatsPanel.vue'
 import SearchPanel from './components/SearchPanel.vue'
 import AdmissionTable from './components/AdmissionTable.vue'
 import SubjectTable from './components/SubjectTable.vue'
 import RetestRulesTable from './components/RetestRulesTable.vue'
 import ScoreLinesTable from './components/ScoreLinesTable.vue'
+import ToastContainer from './components/ToastContainer.vue'
+import { useKeyboard } from './composables/useKeyboard'
+import { useToast } from './composables/useToast'
 
 const AIExtractor = defineAsyncComponent(() => import('./components/AIExtractor.vue'))
 const ImageExtractor = defineAsyncComponent(() => import('./components/ImageExtractor.vue'))
 const SettingsDialog = defineAsyncComponent(() => import('./components/SettingsDialog.vue'))
+
+const { success: showToast, info: showInfo } = useToast()
 
 const statsPanel = ref(null)
 const admissionTable = ref(null)
@@ -130,6 +150,7 @@ const imageExtractor = ref(null)
 const settingsDialog = ref(null)
 const dataMode = ref('admission')
 const searchQuery = ref('')
+const showShortcuts = ref(false)
 
 const tabs = [
   { label: '录取数据', value: 'admission', icon: 'people' },
@@ -138,6 +159,50 @@ const tabs = [
   { label: '分数线', value: 'score_lines', icon: 'analytics' },
 ]
 
+const shortcutsList = [
+  { keys: ['Ctrl', 'K'], description: '聚焦搜索框' },
+  { keys: ['Ctrl', 'N'], description: '开始新的采集' },
+  { keys: ['Ctrl', 'R'], description: '刷新数据' },
+  { keys: ['Ctrl', 'E'], description: '导出数据' },
+  { keys: ['?'], description: '显示快捷键帮助' },
+  { keys: ['1-4'], description: '切换标签页' },
+  { keys: ['Esc'], description: '关闭对话框' },
+]
+
+// 键盘快捷键
+useKeyboard({
+  'ctrl+k': () => {
+    const input = document.querySelector('.google-search__input')
+    if (input) input.focus()
+  },
+  'ctrl+n': () => {
+    aiExtractor.value?.open()
+  },
+  'ctrl+r': (e) => {
+    e.preventDefault()
+    refreshAll()
+    showToast('数据已刷新')
+  },
+  'escape': () => {
+    showShortcuts.value = false
+  },
+  '?': () => {
+    showShortcuts.value = !showShortcuts.value
+  },
+  '1': () => {
+    dataMode.value = 'admission'
+  },
+  '2': () => {
+    dataMode.value = 'subject'
+  },
+  '3': () => {
+    dataMode.value = 'rules'
+  },
+  '4': () => {
+    dataMode.value = 'score_lines'
+  },
+})
+
 const toggleSidebar = () => {
   // TODO: Implement sidebar toggle
 }
@@ -145,6 +210,7 @@ const toggleSidebar = () => {
 const handleGlobalSearch = () => {
   if (searchQuery.value.trim()) {
     handleSearch({ university: searchQuery.value.trim() })
+    showInfo(`正在搜索: ${searchQuery.value.trim()}`)
   }
 }
 
@@ -167,6 +233,11 @@ const handleSearch = (params) => {
     scoreLinesTable.value?.fetchData(params)
   }
 }
+
+// 页面加载动画
+onMounted(() => {
+  document.body.classList.add('loaded')
+})
 </script>
 
 <style>
@@ -613,5 +684,98 @@ const handleSearch = (params) => {
 
 .google-content {
   animation: google-fade-in 0.3s ease-out;
+}
+
+/* ── Keyboard Shortcuts Dialog ── */
+.shortcuts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.shortcut-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--google-gray-50);
+  border-radius: var(--google-radius-sm);
+}
+
+.shortcut-keys {
+  display: flex;
+  gap: 8px;
+}
+
+.shortcut-keys kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 28px;
+  padding: 0 8px;
+  background: var(--google-surface);
+  border: 1px solid var(--google-gray-300);
+  border-radius: 6px;
+  font-family: var(--google-font-roboto);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--google-text-primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.shortcut-desc {
+  font-size: 14px;
+  color: var(--google-text-secondary);
+}
+
+/* ── Loading States ── */
+.is-loading {
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+/* ── Page Load Animation ── */
+body {
+  opacity: 0;
+  transition: opacity 0.3s ease-in-out;
+}
+
+body.loaded {
+  opacity: 1;
+}
+
+/* ── Focus Styles ── */
+*:focus-visible {
+  outline: 2px solid var(--google-blue);
+  outline-offset: 2px;
+}
+
+/* ── Tooltip Styles ── */
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 12px;
+  background: var(--google-gray-900);
+  color: white;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: var(--google-radius-sm);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--google-transition-fast);
+  z-index: 10000;
+}
+
+[data-tooltip]:hover::after {
+  opacity: 1;
 }
 </style>
