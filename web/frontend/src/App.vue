@@ -1,59 +1,102 @@
 <template>
   <div class="app">
-    <!-- Header -->
-    <header class="app-header">
-      <div class="app-header__inner">
-        <div class="app-header__brand">
-          <div class="app-header__logo">
-            <el-icon><DataAnalysis /></el-icon>
-          </div>
-          <div class="app-header__text">
-            <h1 class="app-header__title">KaoyanCrawler</h1>
-            <span class="app-header__sub">考研数据采集系统</span>
+    <!-- Google-style Header -->
+    <header class="google-header">
+      <div class="google-header__inner">
+        <div class="google-header__left">
+          <button class="google-header__menu" @click="toggleSidebar">
+            <span class="material-icons">menu</span>
+          </button>
+          <div class="google-header__brand">
+            <div class="google-header__logo">
+              <span class="material-icons">school</span>
+            </div>
+            <div class="google-header__title-group">
+              <h1 class="google-header__title">考研数据采集</h1>
+              <span class="google-header__subtitle">KaoyanCrawler</span>
+            </div>
           </div>
         </div>
-        <div class="app-header__actions">
-          <el-button :icon="Setting" @click="settingsDialog?.open()">
-            <span class="btn-text">设置</span>
-          </el-button>
-          <el-button :icon="Picture" @click="imageExtractor?.open()">
-            <span class="btn-text">图片识别</span>
-          </el-button>
-          <el-button :icon="MagicStick" type="primary" @click="aiExtractor?.open()">
-            <span class="btn-text">开始采集</span>
-          </el-button>
+
+        <div class="google-header__center">
+          <div class="google-search">
+            <span class="material-icons google-search__icon">search</span>
+            <input
+              v-model="searchQuery"
+              type="text"
+              class="google-search__input"
+              placeholder="搜索学校、专业..."
+              @keyup.enter="handleGlobalSearch"
+            />
+          </div>
+        </div>
+
+        <div class="google-header__right">
+          <button class="google-header__btn" @click="imageExtractor?.open()" data-tooltip="图片识别">
+            <span class="material-icons-outlined">document_scanner</span>
+          </button>
+          <button class="google-header__btn" @click="settingsDialog?.open()" data-tooltip="设置">
+            <span class="material-icons-outlined">settings</span>
+          </button>
+          <button class="google-header__btn google-header__btn--primary" @click="aiExtractor?.open()">
+            <span class="material-icons">auto_awesome</span>
+            <span class="btn-label">开始采集</span>
+          </button>
         </div>
       </div>
     </header>
 
-    <!-- Body -->
-    <main class="app-body">
-      <div class="app-body__inner">
-        <el-row :gutter="24">
-          <el-col :xs="24" :sm="24" :md="8" :lg="6">
-            <StatsPanel ref="statsPanel" />
-          </el-col>
-          <el-col :xs="24" :sm="24" :md="16" :lg="18">
-            <div class="main-content">
-              <SearchPanel @search="handleSearch" v-model:mode="dataMode" />
-              <div class="table-container">
-                <AdmissionTable v-if="dataMode === 'admission'" ref="admissionTable" />
-                <SubjectTable v-else-if="dataMode === 'subject'" ref="subjectTable" />
-                <RetestRulesTable v-else-if="dataMode === 'rules'" ref="rulesTable" />
-                <ScoreLinesTable v-else ref="scoreLinesTable" />
-              </div>
-            </div>
-          </el-col>
-        </el-row>
+    <!-- Main Content -->
+    <main class="google-main">
+      <div class="google-main__inner">
+        <!-- Stats Cards Row -->
+        <div class="google-stats-row">
+          <StatsPanel ref="statsPanel" />
+        </div>
+
+        <!-- Content Area -->
+        <div class="google-content">
+          <!-- Tab Navigation -->
+          <div class="google-tabs">
+            <button
+              v-for="tab in tabs"
+              :key="tab.value"
+              class="google-tab"
+              :class="{ 'google-tab--active': dataMode === tab.value }"
+              @click="dataMode = tab.value"
+            >
+              <span class="material-icons-outlined google-tab__icon">{{ tab.icon }}</span>
+              <span class="google-tab__label">{{ tab.label }}</span>
+            </button>
+          </div>
+
+          <!-- Search Panel -->
+          <SearchPanel @search="handleSearch" v-model:mode="dataMode" />
+
+          <!-- Table Container -->
+          <div class="google-table-container">
+            <AdmissionTable v-if="dataMode === 'admission'" ref="admissionTable" />
+            <SubjectTable v-else-if="dataMode === 'subject'" ref="subjectTable" />
+            <RetestRulesTable v-else-if="dataMode === 'rules'" ref="rulesTable" />
+            <ScoreLinesTable v-else ref="scoreLinesTable" />
+          </div>
+        </div>
       </div>
     </main>
 
-    <!-- Footer -->
-    <footer class="app-footer">
-      <div class="app-footer__inner">
-        <span>KaoyanCrawler © 2025</span>
-        <span class="app-footer__sep">|</span>
-        <span>考研数据采集系统</span>
+    <!-- Google-style Footer -->
+    <footer class="google-footer">
+      <div class="google-footer__inner">
+        <div class="google-footer__links">
+          <a href="#" class="google-footer__link">关于</a>
+          <a href="#" class="google-footer__link">帮助</a>
+          <a href="#" class="google-footer__link">隐私</a>
+          <a href="#" class="google-footer__link">条款</a>
+        </div>
+        <div class="google-footer__copyright">
+          <span class="material-icons" style="font-size: 14px;">school</span>
+          <span>KaoyanCrawler © 2025</span>
+        </div>
       </div>
     </footer>
 
@@ -66,7 +109,6 @@
 
 <script setup>
 import { ref, defineAsyncComponent } from 'vue'
-import { Setting, MagicStick, Picture, DataAnalysis } from '@element-plus/icons-vue'
 import StatsPanel from './components/StatsPanel.vue'
 import SearchPanel from './components/SearchPanel.vue'
 import AdmissionTable from './components/AdmissionTable.vue'
@@ -87,6 +129,24 @@ const aiExtractor = ref(null)
 const imageExtractor = ref(null)
 const settingsDialog = ref(null)
 const dataMode = ref('admission')
+const searchQuery = ref('')
+
+const tabs = [
+  { label: '录取数据', value: 'admission', icon: 'people' },
+  { label: '招生目录', value: 'subject', icon: 'menu_book' },
+  { label: '复试细则', value: 'rules', icon: 'description' },
+  { label: '分数线', value: 'score_lines', icon: 'analytics' },
+]
+
+const toggleSidebar = () => {
+  // TODO: Implement sidebar toggle
+}
+
+const handleGlobalSearch = () => {
+  if (searchQuery.value.trim()) {
+    handleSearch({ university: searchQuery.value.trim() })
+  }
+}
 
 const refreshAll = () => {
   statsPanel.value?.fetchStats()
@@ -110,284 +170,448 @@ const handleSearch = (params) => {
 </script>
 
 <style>
-/* ── Reset ── */
-*,
-*::before,
-*::after {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+/* ── Google Header ── */
+.google-header {
+  background: var(--google-surface);
+  border-bottom: 1px solid var(--google-gray-200);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  height: 64px;
 }
 
-body {
-  background: linear-gradient(135deg, #f5f7fa 0%, #e4e7ed 100%);
-  min-height: 100vh;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+.google-header__inner {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 var(--google-space-4);
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--google-space-4);
 }
 
-/* ── App shell ── */
-.app {
-  min-height: 100vh;
+.google-header__left {
+  display: flex;
+  align-items: center;
+  gap: var(--google-space-4);
+  flex-shrink: 0;
+}
+
+.google-header__menu {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--google-radius-full);
+  border: none;
+  background: transparent;
+  color: var(--google-text-secondary);
+  cursor: pointer;
+  transition: background var(--google-transition-fast);
+}
+
+.google-header__menu:hover {
+  background: var(--google-gray-100);
+}
+
+.google-header__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--google-space-3);
+}
+
+.google-header__logo {
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, var(--google-blue) 0%, var(--google-blue-dark) 100%);
+  border-radius: var(--google-radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 24px;
+}
+
+.google-header__title-group {
   display: flex;
   flex-direction: column;
 }
 
-/* ── Header ── */
-.app-header {
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-  color: #fff;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  position: sticky;
-  top: 0;
-  z-index: 100;
+.google-header__title {
+  font-family: var(--google-font);
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--google-text-primary);
+  line-height: 1.2;
 }
 
-.app-header__inner {
+.google-header__subtitle {
+  font-size: 11px;
+  color: var(--google-text-tertiary);
+  letter-spacing: 0.5px;
+}
+
+.google-header__center {
+  flex: 1;
+  max-width: 720px;
+}
+
+.google-search {
+  display: flex;
+  align-items: center;
+  background: var(--google-gray-100);
+  border-radius: var(--google-radius-full);
+  padding: 0 var(--google-space-4);
+  height: 44px;
+  transition: all var(--google-transition-fast);
+  border: 1px solid transparent;
+}
+
+.google-search:focus-within {
+  background: var(--google-surface);
+  border-color: var(--google-blue);
+  box-shadow: 0 1px 3px rgba(66, 133, 244, 0.2);
+}
+
+.google-search__icon {
+  color: var(--google-text-tertiary);
+  font-size: 20px;
+  margin-right: var(--google-space-3);
+}
+
+.google-search__input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  color: var(--google-text-primary);
+  outline: none;
+}
+
+.google-search__input::placeholder {
+  color: var(--google-text-tertiary);
+}
+
+.google-header__right {
+  display: flex;
+  align-items: center;
+  gap: var(--google-space-2);
+  flex-shrink: 0;
+}
+
+.google-header__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--google-space-2);
+  height: 40px;
+  min-width: 40px;
+  padding: 0 var(--google-space-3);
+  border-radius: var(--google-radius-full);
+  border: none;
+  background: transparent;
+  color: var(--google-text-secondary);
+  cursor: pointer;
+  transition: all var(--google-transition-fast);
+  font-family: var(--google-font);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.google-header__btn:hover {
+  background: var(--google-gray-100);
+  color: var(--google-text-primary);
+}
+
+.google-header__btn--primary {
+  background: var(--google-blue);
+  color: var(--google-text-on-primary);
+  padding: 0 var(--google-space-5);
+}
+
+.google-header__btn--primary:hover {
+  background: var(--google-blue-dark);
+  box-shadow: 0 1px 3px rgba(66, 133, 244, 0.4);
+}
+
+.btn-label {
+  display: inline;
+}
+
+/* ── Google Main ── */
+.google-main {
+  flex: 1;
+  background: var(--google-bg);
+  min-height: calc(100vh - 64px - 56px);
+}
+
+.google-main__inner {
   max-width: 1440px;
   margin: 0 auto;
-  padding: 0 24px;
-  height: 64px;
+  padding: var(--google-space-6);
+}
+
+.google-stats-row {
+  margin-bottom: var(--google-space-6);
+}
+
+.google-content {
+  background: var(--google-surface);
+  border-radius: var(--google-radius-md);
+  box-shadow: var(--google-elevation-1);
+  overflow: hidden;
+}
+
+/* ── Google Tabs ── */
+.google-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--google-gray-200);
+  padding: 0 var(--google-space-4);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.google-tab {
+  display: flex;
+  align-items: center;
+  gap: var(--google-space-2);
+  padding: var(--google-space-4) var(--google-space-5);
+  border: none;
+  background: transparent;
+  color: var(--google-text-secondary);
+  font-family: var(--google-font);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  position: relative;
+  transition: color var(--google-transition-fast);
+  white-space: nowrap;
+}
+
+.google-tab:hover {
+  color: var(--google-blue);
+  background: var(--google-blue-bg);
+}
+
+.google-tab--active {
+  color: var(--google-blue);
+}
+
+.google-tab--active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--google-blue);
+  border-radius: 3px 3px 0 0;
+}
+
+.google-tab__icon {
+  font-size: 18px;
+}
+
+/* ── Google Table Container ── */
+.google-table-container {
+  padding: var(--google-space-4);
+}
+
+/* ── Google Footer ── */
+.google-footer {
+  background: var(--google-gray-50);
+  border-top: 1px solid var(--google-gray-200);
+  padding: var(--google-space-4) 0;
+}
+
+.google-footer__inner {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 var(--google-space-6);
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.app-header__brand {
+.google-footer__links {
   display: flex;
-  align-items: center;
-  gap: 14px;
+  gap: var(--google-space-5);
 }
 
-.app-header__logo {
-  width: 40px;
-  height: 40px;
-  background: linear-gradient(135deg, #409eff 0%, #66b1ff 100%);
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 22px;
-  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.3);
-}
-
-.app-header__text {
-  display: flex;
-  flex-direction: column;
-}
-
-.app-header__title {
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: 1px;
-  background: linear-gradient(90deg, #fff 0%, #a0cfff 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.app-header__sub {
-  font-size: 11px;
-  opacity: 0.7;
-  letter-spacing: 0.5px;
-  margin-top: 2px;
-}
-
-.app-header__actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-/* header buttons */
-.app-header__actions .el-button {
-  --el-button-bg-color: rgba(255, 255, 255, 0.1);
-  --el-button-border-color: rgba(255, 255, 255, 0.2);
-  --el-button-hover-bg-color: rgba(255, 255, 255, 0.2);
-  --el-button-hover-border-color: rgba(255, 255, 255, 0.3);
-  --el-button-text-color: rgba(255, 255, 255, 0.9);
-  --el-button-hover-text-color: #fff;
-  font-weight: 500;
-  font-size: 13px;
-  letter-spacing: 0.5px;
-  border-radius: 8px;
-  padding: 8px 16px;
-  backdrop-filter: blur(10px);
-  transition: all 0.2s;
-}
-
-.app-header__actions .el-button:hover {
-  transform: translateY(-1px);
-}
-
-.app-header__actions .el-button--primary {
-  --el-button-bg-color: linear-gradient(135deg, #409eff 0%, #66b1ff 100%);
-  --el-button-border-color: transparent;
-  background: linear-gradient(135deg, #409eff 0%, #66b1ff 100%) !important;
-  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.4);
-}
-
-.app-header__actions .el-button--primary:hover {
-  box-shadow: 0 6px 16px rgba(64, 158, 255, 0.5);
-}
-
-/* ── Body ── */
-.app-body {
-  flex: 1;
-  padding: 24px;
-}
-
-.app-body__inner {
-  max-width: 1440px;
-  margin: 0 auto;
-}
-
-.main-content {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.table-container {
-  background: var(--el-bg-color);
-  border-radius: 12px;
-  border: 1px solid var(--el-border-color-lighter);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
-  padding: 20px;
-  overflow: hidden;
-}
-
-/* ── Footer ── */
-.app-footer {
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-  color: rgba(255, 255, 255, 0.6);
-  padding: 16px 0;
-  margin-top: auto;
-}
-
-.app-footer__inner {
-  max-width: 1440px;
-  margin: 0 auto;
-  padding: 0 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
+.google-footer__link {
   font-size: 12px;
+  color: var(--google-text-secondary);
+  text-decoration: none;
+  transition: color var(--google-transition-fast);
 }
 
-.app-footer__sep {
-  opacity: 0.3;
+.google-footer__link:hover {
+  color: var(--google-blue);
 }
 
-/* ── Card 全局样式 ── */
-.el-card {
-  border-color: var(--el-border-color-lighter);
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
-}
-
-.el-card__header {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-  padding: 16px 20px;
-  background: linear-gradient(135deg, var(--el-color-primary-light-9) 0%, var(--el-color-primary-light-8) 100%);
-  border-bottom: 1px solid var(--el-border-color-lighter);
-}
-
-/* ── Table 全局样式增强 ── */
-.el-table {
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.el-table th.el-table__cell {
-  background: linear-gradient(135deg, #f5f7fa 0%, #e4e7ed 100%);
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-  font-size: 13px;
-}
-
-.el-table td.el-table__cell {
-  font-size: 13px;
-}
-
-.el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
-  background: #fafafa;
-}
-
-.el-table .el-table__row:hover > td.el-table__cell {
-  background: var(--el-color-primary-light-9);
-}
-
-/* ── Pagination 全局样式 ── */
-.el-pagination {
-  --el-pagination-button-bg-color: var(--el-bg-color);
-  --el-pagination-hover-color: var(--el-color-primary);
-}
-
-.el-pagination .el-pager li {
-  border-radius: 6px;
-  min-width: 32px;
-  height: 32px;
-  line-height: 32px;
-}
-
-.el-pagination .el-pager li.is-active {
-  background: var(--el-color-primary);
-  color: #fff;
-  font-weight: 600;
+.google-footer__copyright {
+  display: flex;
+  align-items: center;
+  gap: var(--google-space-2);
+  font-size: 12px;
+  color: var(--google-text-tertiary);
 }
 
 /* ── Responsive ── */
 @media (max-width: 768px) {
-  .app-header__inner {
-    padding: 0 16px;
+  .google-header {
     height: 56px;
   }
 
-  .app-header__title {
-    font-size: 15px;
-  }
-
-  .app-header__sub {
+  .google-header__center {
     display: none;
   }
 
-  .app-header__logo {
-    width: 36px;
-    height: 36px;
-    font-size: 18px;
-  }
-
-  .btn-text {
+  .google-header__title-group {
     display: none;
   }
 
-  .app-body {
-    padding: 16px;
+  .btn-label {
+    display: none;
   }
 
-  .table-container {
-    padding: 12px;
-    border-radius: 8px;
+  .google-header__btn--primary {
+    padding: 0 var(--google-space-3);
+    min-width: 40px;
   }
 
-  .app-footer__inner {
+  .google-main__inner {
+    padding: var(--google-space-4);
+  }
+
+  .google-tabs {
+    padding: 0;
+  }
+
+  .google-tab {
+    padding: var(--google-space-3) var(--google-space-4);
+    flex: 1;
+    justify-content: center;
+  }
+
+  .google-tab__label {
+    display: none;
+  }
+
+  .google-table-container {
+    padding: var(--google-space-3);
+  }
+
+  .google-footer__inner {
     flex-direction: column;
-    gap: 4px;
+    gap: var(--google-space-3);
+    text-align: center;
   }
 }
 
-@media (max-width: 480px) {
-  .app-header__actions {
-    gap: 8px;
-  }
+/* ── Element Plus Google Style Overrides ── */
+.el-button {
+  font-family: var(--google-font) !important;
+  border-radius: var(--google-radius-full) !important;
+  font-weight: 500 !important;
+}
 
-  .app-header__actions .el-button {
-    padding: 6px 12px;
+.el-button--primary {
+  background: var(--google-blue) !important;
+  border-color: var(--google-blue) !important;
+}
+
+.el-button--primary:hover {
+  background: var(--google-blue-dark) !important;
+  border-color: var(--google-blue-dark) !important;
+}
+
+.el-input__wrapper {
+  border-radius: var(--google-radius-sm) !important;
+  box-shadow: none !important;
+  border: 1px solid var(--google-gray-300) !important;
+}
+
+.el-input__wrapper:hover {
+  border-color: var(--google-gray-400) !important;
+}
+
+.el-input__wrapper.is-focus {
+  border-color: var(--google-blue) !important;
+  box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.2) !important;
+}
+
+.el-select .el-input__wrapper {
+  border-radius: var(--google-radius-sm) !important;
+}
+
+.el-table {
+  font-family: var(--google-font-roboto) !important;
+  border-radius: var(--google-radius-md) !important;
+  overflow: hidden;
+}
+
+.el-table th.el-table__cell {
+  background: var(--google-gray-50) !important;
+  color: var(--google-text-primary) !important;
+  font-weight: 500 !important;
+  font-size: 13px !important;
+}
+
+.el-table td.el-table__cell {
+  font-size: 13px !important;
+}
+
+.el-pagination {
+  font-family: var(--google-font-roboto) !important;
+}
+
+.el-pagination .el-pager li {
+  border-radius: var(--google-radius-full) !important;
+  min-width: 32px !important;
+  height: 32px !important;
+  line-height: 32px !important;
+}
+
+.el-pagination .el-pager li.is-active {
+  background: var(--google-blue) !important;
+  color: white !important;
+}
+
+.el-tag {
+  border-radius: var(--google-radius-full) !important;
+  font-family: var(--google-font) !important;
+}
+
+.el-dialog {
+  border-radius: var(--google-radius-lg) !important;
+  overflow: hidden;
+}
+
+.el-dialog__header {
+  font-family: var(--google-font) !important;
+  font-weight: 500 !important;
+}
+
+.el-message-box {
+  border-radius: var(--google-radius-lg) !important;
+}
+
+/* ── Animations ── */
+@keyframes google-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
   }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.google-content {
+  animation: google-fade-in 0.3s ease-out;
 }
 </style>
