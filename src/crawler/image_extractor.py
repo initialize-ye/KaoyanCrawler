@@ -457,8 +457,11 @@ class ImageExtractor:
             resp.raise_for_status()
             data = resp.json()
             text = data["content"][0]["text"]
+            logger.debug(f"LLM 响应前500字符: {text[:500]}")
             result = self._parse_json_response(text)
-            result["success"] = True
+            # 只有解析成功才设置 success=True
+            if "error" not in result:
+                result["success"] = True
             return result
 
     async def _call_openai_compatible_text(self, prompt: str, max_tokens: int) -> dict[str, Any]:
@@ -481,17 +484,28 @@ class ImageExtractor:
             resp.raise_for_status()
             data = resp.json()
             text = data["choices"][0]["message"]["content"]
+            logger.debug(f"LLM 响应前500字符: {text[:500]}")
             result = self._parse_json_response(text)
-            result["success"] = True
+            # 只有解析成功才设置 success=True
+            if "error" not in result:
+                result["success"] = True
             return result
 
     def _parse_json_response(self, text: str) -> dict[str, Any]:
         """解析 LLM 返回的 JSON。"""
+        if not text or not text.strip():
+            logger.warning("LLM 返回空内容")
+            return {"error": "AI 返回空内容"}
+
+        text = text.strip()
+
+        # 1. 直接解析
         try:
             return json.loads(text)
         except json.JSONDecodeError:
             pass
 
+        # 2. 提取 markdown 代码块中的 JSON
         json_match = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
         if json_match:
             try:
@@ -499,26 +513,40 @@ class ImageExtractor:
             except json.JSONDecodeError:
                 pass
 
+        # 3. 找到第一个 { 到最后一个 }
         start = text.find("{")
         end = text.rfind("}")
-        if start != -1 and end != -1:
+        if start != -1 and end != -1 and end > start:
             try:
                 return json.loads(text[start:end + 1])
             except json.JSONDecodeError:
                 pass
 
-        # 尝试修复截断的 JSON
+        # 4. 尝试修复截断的 JSON
         if start != -1:
             json_str = text[start:]
+            # 统计未闭合的括号
             open_braces = json_str.count('{') - json_str.count('}')
             open_brackets = json_str.count('[') - json_str.count(']')
             if open_braces > 0 or open_brackets > 0:
-                json_str += ']' * open_brackets + '}' * open_braces
-                json_str = re.sub(r',\s*([}\]])', r'\1', json_str)
+                # 移除末尾可能的不完整键值对
+                json_str = re.sub(r',\s*"[^"]*:\s*"[^"]*$', '', json_str)
+                json_str = re.sub(r',\s*"[^"]*$', '', json_str)
+                json_str = re.sub(r',\s*$', '', json_str)
+                json_str = re.sub(r':\s*$', ': null', json_str)
+                # 补全括号
+                json_str += ']' * max(0, open_brackets) + '}' * max(0, open_braces)
+                try:
+                    return json.loads(json_str)
+                except json.JSONDecodeError:
+                    pass
+                # 再试一次，移除更多末尾内容
+                json_str = re.sub(r'[\s,]*"[^"]*$', '', json_str)
+                json_str += ']' * max(0, open_brackets) + '}' * max(0, open_braces)
                 try:
                     return json.loads(json_str)
                 except json.JSONDecodeError:
                     pass
 
-        logger.warning(f"JSON 解析失败，原始文本前200字符: {text[:200]}")
-        return {"success": False, "error": "无法解析 AI 响应"}
+        logger.warning(f"JSON 解析失败，原始文本前500字符: {text[:500]}")
+        return {"error": "无法解析 AI 响应"}
