@@ -2118,19 +2118,30 @@ async def save_image_data(data: dict):
     year = datetime.now().year
 
     async with aiosqlite.connect(db.db_path) as conn:
-        for college in data.get("colleges", []):
-            college_name = college.get("collegeName", "")
-            for major in college.get("majors", []):
-                major_name = major.get("majorName", "")
-                major_code = major.get("majorCode", "")
+        # 支持新的 rows 格式（可编辑表格）
+        rows = data.get("rows", [])
+        if rows:
+            for row in rows:
+                major_name = row.get("majorName", "").strip()
                 if not major_name:
                     continue
 
-                subjects = major.get("subjects", [])
+                college_name = row.get("collegeName", "").strip()
+                major_code = row.get("majorCode", "").strip()
+                subjects_str = row.get("subjects", "")
+                subjects = [s.strip() for s in subjects_str.split("、") if s.strip()] if subjects_str else []
+
                 subject1 = subjects[0] if len(subjects) > 0 else None
                 subject2 = subjects[1] if len(subjects) > 1 else None
                 subject3 = subjects[2] if len(subjects) > 2 else None
                 subject4 = subjects[3] if len(subjects) > 3 else None
+
+                enrollment = None
+                if row.get("plannedEnrollment"):
+                    try:
+                        enrollment = int(row["plannedEnrollment"])
+                    except ValueError:
+                        pass
 
                 try:
                     await conn.execute(
@@ -2140,8 +2151,8 @@ async def save_image_data(data: dict):
                          source_url, crawl_time)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                         (
-                            school_name, year, major_code or '', major_name,
-                            college_name, '', major.get("plannedEnrollment"),
+                            school_name, year, major_code, major_name,
+                            college_name, '', enrollment,
                             subject1, subject2, subject3, subject4,
                             '', datetime.now().isoformat(),
                         )
@@ -2149,6 +2160,39 @@ async def save_image_data(data: dict):
                     saved_count += 1
                 except Exception as e:
                     errors.append(f"{major_name}: {str(e)}")
+        else:
+            # 兼容旧的 colleges/majors 格式
+            for college in data.get("colleges", []):
+                college_name = college.get("collegeName", "")
+                for major in college.get("majors", []):
+                    major_name = major.get("majorName", "")
+                    major_code = major.get("majorCode", "")
+                    if not major_name:
+                        continue
+
+                    subjects = major.get("subjects", [])
+                    subject1 = subjects[0] if len(subjects) > 0 else None
+                    subject2 = subjects[1] if len(subjects) > 1 else None
+                    subject3 = subjects[2] if len(subjects) > 2 else None
+                    subject4 = subjects[3] if len(subjects) > 3 else None
+
+                    try:
+                        await conn.execute(
+                            """INSERT OR REPLACE INTO exam_subjects
+                            (university, year, major_code, major_name, department,
+                             research_direction, enrollment, subject1, subject2, subject3, subject4,
+                             source_url, crawl_time)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                            (
+                                school_name, year, major_code or '', major_name,
+                                college_name, '', major.get("plannedEnrollment"),
+                                subject1, subject2, subject3, subject4,
+                                '', datetime.now().isoformat(),
+                            )
+                        )
+                        saved_count += 1
+                    except Exception as e:
+                        errors.append(f"{major_name}: {str(e)}")
 
         await conn.commit()
 
