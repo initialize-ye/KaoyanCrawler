@@ -580,7 +580,7 @@ class ImageExtractor:
             return result
 
     def _parse_json_response(self, text: str) -> dict[str, Any]:
-        """解析 LLM 返回的 JSON。"""
+        """解析 LLM 返回的 JSON，支持截断修复。"""
         if not text or not text.strip():
             logger.warning("LLM 返回空内容")
             return {"error": "AI 返回空内容"}
@@ -613,28 +613,48 @@ class ImageExtractor:
         # 4. 尝试修复截断的 JSON
         if start != -1:
             json_str = text[start:]
-            # 统计未闭合的括号
-            open_braces = json_str.count('{') - json_str.count('}')
-            open_brackets = json_str.count('[') - json_str.count(']')
-            if open_braces > 0 or open_brackets > 0:
-                # 移除末尾可能的不完整键值对
-                json_str = re.sub(r',\s*"[^"]*:\s*"[^"]*$', '', json_str)
-                json_str = re.sub(r',\s*"[^"]*$', '', json_str)
-                json_str = re.sub(r',\s*$', '', json_str)
-                json_str = re.sub(r':\s*$', ': null', json_str)
+
+            # 多轮修复尝试
+            for attempt in range(5):
+                # 统计未闭合的括号
+                open_braces = json_str.count('{') - json_str.count('}')
+                open_brackets = json_str.count('[') - json_str.count(']')
+
+                if open_braces <= 0 and open_brackets <= 0:
+                    # 括号已平衡，尝试解析
+                    try:
+                        return json.loads(json_str)
+                    except json.JSONDecodeError:
+                        pass
+
+                # 移除末尾不完整内容
+                if attempt == 0:
+                    # 第一轮：移除末尾不完整的键值对
+                    json_str = re.sub(r',\s*"[^"]*:\s*"[^"]*$', '', json_str)
+                    json_str = re.sub(r',\s*"[^"]*$', '', json_str)
+                elif attempt == 1:
+                    # 第二轮：移除末尾的逗号和空白
+                    json_str = re.sub(r',\s*$', '', json_str)
+                    json_str = re.sub(r':\s*$', ': null', json_str)
+                elif attempt == 2:
+                    # 第三轮：移除更多末尾内容
+                    json_str = re.sub(r'[\s,]*"[^"]*$', '', json_str)
+                elif attempt == 3:
+                    # 第四轮：移除最后一个不完整的对象
+                    json_str = re.sub(r',\s*\{[^}]*$', '', json_str)
+                else:
+                    # 第五轮：激进清理
+                    json_str = re.sub(r'[,\s]*$', '', json_str)
+
                 # 补全括号
-                json_str += ']' * max(0, open_brackets) + '}' * max(0, open_braces)
-                try:
-                    return json.loads(json_str)
-                except json.JSONDecodeError:
-                    pass
-                # 再试一次，移除更多末尾内容
-                json_str = re.sub(r'[\s,]*"[^"]*$', '', json_str)
-                json_str += ']' * max(0, open_brackets) + '}' * max(0, open_braces)
-                try:
-                    return json.loads(json_str)
-                except json.JSONDecodeError:
-                    pass
+                open_braces = json_str.count('{') - json_str.count('}')
+                open_brackets = json_str.count('[') - json_str.count(']')
+                if open_braces > 0 or open_brackets > 0:
+                    fix = ']' * max(0, open_brackets) + '}' * max(0, open_braces)
+                    try:
+                        return json.loads(json_str + fix)
+                    except json.JSONDecodeError:
+                        pass
 
         logger.warning(f"JSON 解析失败，原始文本前500字符: {text[:500]}")
         return {"error": "无法解析 AI 响应"}
