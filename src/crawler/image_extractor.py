@@ -563,8 +563,10 @@ class ImageExtractor:
             data = resp.json()
             text = data["choices"][0]["message"]["content"]
             logger.info(f"LLM 响应长度: {len(text)} 字符")
-            logger.info(f"LLM 响应前1000字符: {text[:1000]}")
+            logger.info(f"LLM 响应前2000字符: {text[:2000]}")
             result = self._parse_json_response(text)
+            logger.info(f"解析后 keys: {list(result.keys())}")
+            logger.info(f"解析后 colleges 数量: {len(result.get('colleges', []))}")
             # 只有解析成功才设置 success=True
             if "error" not in result:
                 result["success"] = True
