@@ -498,6 +498,58 @@ async def get_universities():
     return {"universities": universities}
 
 
+# ========== 学校管理 API ==========
+
+@app.get("/api/schools")
+async def get_schools():
+    """获取所有学校及数据统计。"""
+    db = get_db()
+    schools = await db.get_all_schools()
+    return {"schools": schools}
+
+
+@app.get("/api/schools/{university}")
+async def get_school_detail(university: str):
+    """获取单个学校的详细信息。"""
+    db = get_db()
+    school = await db.get_school_detail(university)
+    if not school:
+        return {"error": "学校不存在"}
+    return school
+
+
+class SchoolInfoRequest(BaseModel):
+    name: str
+    website: str = ""
+    duration: str = ""
+    tuition: str = ""
+    scholarship: str = ""
+    notes: str = ""
+
+
+@app.post("/api/schools")
+async def create_or_update_school(req: SchoolInfoRequest):
+    """创建或更新学校信息。"""
+    db = get_db()
+    school = await db.upsert_school(
+        name=req.name,
+        website=req.website,
+        duration=req.duration,
+        tuition=req.tuition,
+        scholarship=req.scholarship,
+        notes=req.notes,
+    )
+    return {"status": "ok", "school": school}
+
+
+@app.delete("/api/schools/{university}")
+async def delete_school(university: str):
+    """删除学校及所有关联数据。"""
+    db = get_db()
+    deleted = await db.delete_school(university)
+    return {"status": "ok", "message": f"已删除 {deleted} 条记录"}
+
+
 # ========== 配置向导 API ==========
 
 @app.get("/api/discover")

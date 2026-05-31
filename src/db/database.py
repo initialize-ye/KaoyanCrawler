@@ -91,6 +91,18 @@ CREATE INDEX IF NOT EXISTS idx_rules_uni_year ON retest_rules(university, year);
 CREATE INDEX IF NOT EXISTS idx_scorelines_university ON score_lines(university);
 CREATE INDEX IF NOT EXISTS idx_scorelines_year ON score_lines(year);
 CREATE INDEX IF NOT EXISTS idx_scorelines_uni_year ON score_lines(university, year);
+
+CREATE TABLE IF NOT EXISTS schools (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    website TEXT DEFAULT '',
+    duration TEXT DEFAULT '',
+    tuition TEXT DEFAULT '',
+    scholarship TEXT DEFAULT '',
+    notes TEXT DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
 """
 
 
@@ -414,3 +426,110 @@ class Database:
             async with db.execute(sql, params + [page_size, offset]) as cursor:
                 rows = await cursor.fetchall()
                 return [dict(row) for row in rows], total
+
+    # ========== 学校管理 ==========
+
+    async def get_all_schools(self) -> list[dict]:
+        """获取所有学校及各表数据计数。"""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            sql = """
+                SELECT
+                    s.name,
+                    s.website,
+                    s.duration,
+                    s.tuition,
+                    s.scholarship,
+                    s.updated_at,
+                    COALESCE(a.cnt, 0) as admission_count,
+                    COALESCE(e.cnt, 0) as subject_count,
+                    COALESCE(r.cnt, 0) as rule_count,
+                    COALESCE(sl.cnt, 0) as score_line_count
+                FROM schools s
+                LEFT JOIN (SELECT university, COUNT(*) as cnt FROM admission_records GROUP BY university) a ON s.name = a.university
+                LEFT JOIN (SELECT university, COUNT(*) as cnt FROM exam_subjects GROUP BY university) e ON s.name = e.university
+                LEFT JOIN (SELECT university, COUNT(*) as cnt FROM retest_rules GROUP BY university) r ON s.name = r.university
+                LEFT JOIN (SELECT university, COUNT(*) as cnt FROM score_lines GROUP BY university) sl ON s.name = sl.university
+                ORDER BY s.name
+            """
+            async with db.execute(sql) as cursor:
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows]
+
+    async def get_school_detail(self, university: str) -> dict | None:
+        """获取单个学校的详细信息。"""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+
+            # 学校基本信息
+            async with db.execute("SELECT * FROM schools WHERE name = ?", (university,)) as cursor:
+                school_row = await cursor.fetchone()
+                school = dict(school_row) if school_row else {"name": university}
+
+            # 各表数据计数
+            counts = {}
+            for table in ["admission_records", "exam_subjects", "retest_rules", "score_lines"]:
+                async with db.execute(f"SELECT COUNT(*) FROM {table} WHERE university = ?", (university,)) as cursor:
+                    counts[table] = (await cursor.fetchone())[0]
+
+            school["counts"] = counts
+            return school
+
+    async def upsert_school(self, name: str, **kwargs) -> dict:
+        """创建或更新学校信息。"""
+        from datetime import datetime
+
+        now = datetime.now().isoformat()
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+
+            # 检查是否存在
+            async with db.execute("SELECT * FROM schools WHERE name = ?", (name,)) as cursor:
+                existing = await cursor.fetchone()
+
+            if existing:
+                # 更新
+                updates = []
+                params = []
+                for key in ["website", "duration", "tuition", "scholarship", "notes"]:
+                    if key in kwargs and kwargs[key]:
+                        updates.append(f"{key} = ?")
+                        params.append(kwargs[key])
+                if updates:
+                    updates.append("updated_at = ?")
+                    params.append(now)
+                    params.append(name)
+                    await db.execute(f"UPDATE schools SET {', '.join(updates)} WHERE name = ?", params)
+            else:
+                # 创建
+                await db.execute(
+                    """INSERT INTO schools (name, website, duration, tuition, scholarship, notes, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        name,
+                        kwargs.get("website", ""),
+                        kwargs.get("duration", ""),
+                        kwargs.get("tuition", ""),
+                        kwargs.get("scholarship", ""),
+                        kwargs.get("notes", ""),
+                        now, now,
+                    )
+                )
+
+            await db.commit()
+
+            # 返回更新后的数据
+            async with db.execute("SELECT * FROM schools WHERE name = ?", (name,)) as cursor:
+                row = await cursor.fetchone()
+                return dict(row) if row else {"name": name}
+
+    async def delete_school(self, university: str) -> int:
+        """删除学校及所有关联数据。"""
+        total = 0
+        async with aiosqlite.connect(self.db_path) as conn:
+            for table in ["admission_records", "exam_subjects", "retest_rules", "score_lines"]:
+                cursor = await conn.execute(f"DELETE FROM {table} WHERE university = ?", (university,))
+                total += cursor.rowcount
+            await conn.execute("DELETE FROM schools WHERE name = ?", (university,))
+            await conn.commit()
+        return total

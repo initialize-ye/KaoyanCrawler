@@ -4,9 +4,6 @@
     <header class="google-header">
       <div class="google-header__inner">
         <div class="google-header__left">
-          <button class="google-header__menu" @click="toggleSidebar">
-            <span class="material-icons">menu</span>
-          </button>
           <div class="google-header__brand">
             <div class="google-header__logo">
               <span class="material-icons">school</span>
@@ -25,8 +22,8 @@
               v-model="searchQuery"
               type="text"
               class="google-search__input"
-              placeholder="搜索学校、专业..."
-              @keyup.enter="handleGlobalSearch"
+              placeholder="搜索学校名称..."
+              @keyup.enter="handleSearch"
             />
           </div>
         </div>
@@ -49,37 +46,33 @@
     <!-- Main Content -->
     <main class="google-main">
       <div class="google-main__inner">
-        <!-- Stats Cards Row -->
-        <div class="google-stats-row">
-          <StatsPanel ref="statsPanel" />
+        <!-- 学校列表视图 -->
+        <div v-if="!selectedSchool">
+          <!-- 统计面板 -->
+          <div class="google-stats-row">
+            <StatsPanel ref="statsPanel" />
+          </div>
+
+          <!-- 学校列表 -->
+          <div class="google-content">
+            <SchoolList
+              :schools="schoolList"
+              :loading="schoolsLoading"
+              :selectedSchool="selectedSchool"
+              @select="selectSchool"
+              @delete="deleteSchool"
+            />
+          </div>
         </div>
 
-        <!-- Content Area -->
-        <div class="google-content">
-          <!-- Tab Navigation -->
-          <div class="google-tabs">
-            <button
-              v-for="tab in tabs"
-              :key="tab.value"
-              class="google-tab"
-              :class="{ 'google-tab--active': dataMode === tab.value }"
-              @click="dataMode = tab.value"
-            >
-              <span class="material-icons-outlined google-tab__icon">{{ tab.icon }}</span>
-              <span class="google-tab__label">{{ tab.label }}</span>
-            </button>
-          </div>
-
-          <!-- Search Panel -->
-          <SearchPanel @search="handleSearch" v-model:mode="dataMode" />
-
-          <!-- Table Container -->
-          <div class="google-table-container">
-            <AdmissionTable v-if="dataMode === 'admission'" ref="admissionTable" />
-            <SubjectTable v-else-if="dataMode === 'subject'" ref="subjectTable" />
-            <RetestRulesTable v-else-if="dataMode === 'rules'" ref="rulesTable" />
-            <ScoreLinesTable v-else ref="scoreLinesTable" />
-          </div>
+        <!-- 学校详情视图 -->
+        <div v-else>
+          <SchoolDetail
+            :schoolName="selectedSchool"
+            @back="selectedSchool = null"
+            @delete="deleteSchool"
+            @refresh="refreshAll"
+          />
         </div>
       </div>
     </main>
@@ -102,7 +95,7 @@
 
     <!-- Dialogs -->
     <AIExtractor ref="aiExtractor" @open-settings="settingsDialog?.open()" @data-saved="refreshAll" />
-    <ImageExtractor ref="imageExtractor" @open-settings="settingsDialog?.open()" />
+    <ImageExtractor ref="imageExtractor" @open-settings="settingsDialog?.open()" @data-saved="refreshAll" />
     <SettingsDialog ref="settingsDialog" @settings-saved="aiExtractor?.checkStatus?.()" />
 
     <!-- Toast Notifications -->
@@ -112,12 +105,11 @@
 
 <script setup>
 import { ref, defineAsyncComponent, onMounted } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import axios from 'axios'
 import StatsPanel from './components/StatsPanel.vue'
-import SearchPanel from './components/SearchPanel.vue'
-import AdmissionTable from './components/AdmissionTable.vue'
-import SubjectTable from './components/SubjectTable.vue'
-import RetestRulesTable from './components/RetestRulesTable.vue'
-import ScoreLinesTable from './components/ScoreLinesTable.vue'
+import SchoolList from './components/SchoolList.vue'
+import SchoolDetail from './components/SchoolDetail.vue'
 import ToastContainer from './components/ToastContainer.vue'
 import { useToast } from './composables/useToast'
 
@@ -125,60 +117,72 @@ const AIExtractor = defineAsyncComponent(() => import('./components/AIExtractor.
 const ImageExtractor = defineAsyncComponent(() => import('./components/ImageExtractor.vue'))
 const SettingsDialog = defineAsyncComponent(() => import('./components/SettingsDialog.vue'))
 
-const { success: showToast, info: showInfo } = useToast()
+const { success: showToast } = useToast()
 
 const statsPanel = ref(null)
-const admissionTable = ref(null)
-const subjectTable = ref(null)
-const rulesTable = ref(null)
-const scoreLinesTable = ref(null)
 const aiExtractor = ref(null)
 const imageExtractor = ref(null)
 const settingsDialog = ref(null)
-const dataMode = ref('admission')
+
 const searchQuery = ref('')
+const selectedSchool = ref(null)
+const schoolList = ref([])
+const schoolsLoading = ref(false)
 
-const tabs = [
-  { label: '录取数据', value: 'admission', icon: 'people' },
-  { label: '招生目录', value: 'subject', icon: 'menu_book' },
-  { label: '复试细则', value: 'rules', icon: 'description' },
-  { label: '分数线', value: 'score_lines', icon: 'analytics' },
-]
-
-const toggleSidebar = () => {
-  // TODO: Implement sidebar toggle
-}
-
-const handleGlobalSearch = () => {
-  if (searchQuery.value.trim()) {
-    handleSearch({ university: searchQuery.value.trim() })
-    showInfo(`正在搜索: ${searchQuery.value.trim()}`)
+// 获取学校列表
+const fetchSchools = async () => {
+  schoolsLoading.value = true
+  try {
+    const { data } = await axios.get('/api/schools')
+    schoolList.value = data.schools || []
+  } catch (e) {
+    console.error('获取学校列表失败:', e)
+    schoolList.value = []
+  } finally {
+    schoolsLoading.value = false
   }
 }
 
+// 选择学校
+const selectSchool = (schoolName) => {
+  selectedSchool.value = schoolName
+}
+
+// 删除学校
+const deleteSchool = async (schoolName) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定删除 "${schoolName}" 及其所有数据？此操作不可撤销。`,
+      '确认删除',
+      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' }
+    )
+    const { data } = await axios.delete(`/api/schools/${encodeURIComponent(schoolName)}`)
+    ElMessage.success(data.message || '已删除')
+    selectedSchool.value = null
+    refreshAll()
+  } catch (e) {
+    if (e !== 'cancel') {
+      ElMessage.error('删除失败: ' + (e.response?.data?.detail || e.message))
+    }
+  }
+}
+
+// 搜索
+const handleSearch = () => {
+  if (searchQuery.value.trim()) {
+    selectSchool(searchQuery.value.trim())
+  }
+}
+
+// 刷新所有数据
 const refreshAll = () => {
   statsPanel.value?.fetchStats()
-  admissionTable.value?.fetchData()
-  subjectTable.value?.fetchData()
-  rulesTable.value?.fetchData()
-  scoreLinesTable.value?.fetchData()
+  fetchSchools()
 }
 
-const handleSearch = (params) => {
-  if (dataMode.value === 'admission') {
-    admissionTable.value?.fetchData(params)
-  } else if (dataMode.value === 'subject') {
-    subjectTable.value?.fetchData(params)
-  } else if (dataMode.value === 'rules') {
-    rulesTable.value?.fetchData(params)
-  } else {
-    scoreLinesTable.value?.fetchData(params)
-  }
-}
-
-// 页面加载动画
 onMounted(() => {
   document.body.classList.add('loaded')
+  fetchSchools()
 })
 </script>
 
@@ -209,24 +213,6 @@ onMounted(() => {
   align-items: center;
   gap: var(--google-space-4);
   flex-shrink: 0;
-}
-
-.google-header__menu {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: var(--google-radius-full);
-  border: none;
-  background: transparent;
-  color: var(--google-text-secondary);
-  cursor: pointer;
-  transition: background var(--google-transition-fast);
-}
-
-.google-header__menu:hover {
-  background: var(--google-gray-100);
 }
 
 .google-header__brand {
@@ -374,62 +360,8 @@ onMounted(() => {
   background: var(--google-surface);
   border-radius: var(--google-radius-md);
   box-shadow: var(--google-elevation-1);
-  overflow: hidden;
-}
-
-/* ── Google Tabs ── */
-.google-tabs {
-  display: flex;
-  border-bottom: 1px solid var(--google-gray-200);
-  padding: 0 var(--google-space-4);
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-.google-tab {
-  display: flex;
-  align-items: center;
-  gap: var(--google-space-2);
-  padding: var(--google-space-4) var(--google-space-5);
-  border: none;
-  background: transparent;
-  color: var(--google-text-secondary);
-  font-family: var(--google-font);
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  position: relative;
-  transition: color var(--google-transition-fast);
-  white-space: nowrap;
-}
-
-.google-tab:hover {
-  color: var(--google-blue);
-  background: var(--google-blue-bg);
-}
-
-.google-tab--active {
-  color: var(--google-blue);
-}
-
-.google-tab--active::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: var(--google-blue);
-  border-radius: 3px 3px 0 0;
-}
-
-.google-tab__icon {
-  font-size: 18px;
-}
-
-/* ── Google Table Container ── */
-.google-table-container {
-  padding: var(--google-space-4);
+  padding: var(--google-space-6);
+  animation: google-fade-in 0.3s ease-out;
 }
 
 /* ── Google Footer ── */
@@ -497,24 +429,6 @@ onMounted(() => {
 
   .google-main__inner {
     padding: var(--google-space-4);
-  }
-
-  .google-tabs {
-    padding: 0;
-  }
-
-  .google-tab {
-    padding: var(--google-space-3) var(--google-space-4);
-    flex: 1;
-    justify-content: center;
-  }
-
-  .google-tab__label {
-    display: none;
-  }
-
-  .google-table-container {
-    padding: var(--google-space-3);
   }
 
   .google-footer__inner {
@@ -622,16 +536,6 @@ onMounted(() => {
     opacity: 1;
     transform: translateY(0);
   }
-}
-
-.google-content {
-  animation: google-fade-in 0.3s ease-out;
-}
-
-/* ── Loading States ── */
-.is-loading {
-  pointer-events: none;
-  opacity: 0.7;
 }
 
 /* ── Page Load Animation ── */
