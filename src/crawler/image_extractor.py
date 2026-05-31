@@ -341,6 +341,138 @@ class ImageExtractor:
             model=config.get("model", ""),
         )
 
+    def _extract_basic_from_ocr(self, text: str) -> dict[str, Any]:
+        """从 OCR 文本中提取基本信息（无需 LLM）。"""
+        result = {
+            "schoolName": None,
+            "schoolWebsite": None,
+            "duration": None,
+            "tuition": None,
+            "colleges": [],
+        }
+
+        # 提取学校名称（通常是第一行或包含"大学"、"学院"的文本）
+        school_match = re.search(r'(\d{2,4})?([一-龥]{2,}(?:大学|学院|研究院))', text)
+        if school_match:
+            result["schoolName"] = school_match.group(2)
+
+        # 提取官网
+        url_match = re.search(r'(https?://[^\s]+)', text)
+        if url_match:
+            result["schoolWebsite"] = url_match.group(1)
+
+        # 提取学制
+        duration_match = re.search(r'学制\s*(\d+年)', text)
+        if duration_match:
+            result["duration"] = duration_match.group(1)
+
+        # 提取学费
+        tuition_match = re.search(r'学费\s*(\d+[/每]年)', text)
+        if tuition_match:
+            result["tuition"] = tuition_match.group(1)
+
+        # 提取学院和专业
+        # 查找学院名称（以"学院"结尾）
+        college_pattern = r'([一-龥]+(?:学院|研究院|学部))'
+        colleges = re.findall(college_pattern, text)
+
+        # 查找专业名称和分数线
+        # 格式：专业名称 ... 数字【数字-数字】
+        major_pattern = r'([一-龥]{2,}(?:工程|技术|科学|学|理论|设计))\s+.*?(\d+[【\[]\d+[-~]\d+[】\]])'
+        majors = re.findall(major_pattern, text)
+
+        # 查找复试信息
+        retest_time_match = re.search(r'(?:复试|上机|面试).*?(?:时间|：)\s*([^\n]+?)(?:\s|$)', text)
+        retest_method_match = re.search(r'复试形式[：:]\s*([^\n]+)', text)
+        retest_content_match = re.search(r'(?:复试内容|考试内容|上机能力测试)[：:]\s*([^\n]+)', text)
+        score_rule_match = re.search(r'总成绩[=＝]\s*([^\n]+)', text)
+
+        retest_info = {}
+        if retest_time_match:
+            retest_info["time"] = retest_time_match.group(1).strip()
+        if retest_method_match:
+            retest_info["method"] = retest_method_match.group(1).strip()
+        if retest_content_match:
+            retest_info["content"] = retest_content_match.group(1).strip()
+        if score_rule_match:
+            retest_info["scoreRule"] = score_rule_match.group(1).strip()
+
+        # 如果没有提取到复试信息，尝试从文本中提取
+        if not retest_info:
+            # 查找时间信息
+            time_match = re.search(r'(\d+月\d+日[^\s]*)', text)
+            if time_match:
+                retest_info["time"] = time_match.group(1)
+
+        # 构建学院和专业数据
+        if colleges:
+            for college_name in set(colleges):
+                college_majors = []
+                for major_name, score_range in majors:
+                    # 尝试提取复试线
+                    score_match = re.search(r'(\d+)[【\[]', score_range)
+                    retest_score_line = score_match.group(1) if score_match else None
+
+                    college_majors.append({
+                        "majorName": major_name,
+                        "majorCode": None,
+                        "subjects": [],
+                        "retestScoreLine": retest_score_line,
+                        "retestCount": None,
+                        "retestScoreRange": score_range.replace("【", "").replace("】", "").replace("[", "").replace("]", ""),
+                        "singleSubjectRange": None,
+                        "plannedEnrollment": None,
+                        "admissionScoreRange": None,
+                        "specialProgram": None,
+                        "retestInfo": retest_info if retest_info else None,
+                    })
+
+                result["colleges"].append({
+                    "collegeName": college_name,
+                    "collegeWebsite": None,
+                    "majors": college_majors if college_majors else [{
+                        "majorName": None,
+                        "majorCode": None,
+                        "subjects": [],
+                        "retestScoreLine": None,
+                        "retestCount": None,
+                        "retestScoreRange": None,
+                        "singleSubjectRange": None,
+                        "plannedEnrollment": None,
+                        "admissionScoreRange": None,
+                        "specialProgram": None,
+                        "retestInfo": retest_info if retest_info else None,
+                    }],
+                })
+        elif majors:
+            # 没有学院信息，但有专业信息
+            college_majors = []
+            for major_name, score_range in majors:
+                score_match = re.search(r'(\d+)[【\[]', score_range)
+                retest_score_line = score_match.group(1) if score_match else None
+
+                college_majors.append({
+                    "majorName": major_name,
+                    "majorCode": None,
+                    "subjects": [],
+                    "retestScoreLine": retest_score_line,
+                    "retestCount": None,
+                    "retestScoreRange": score_range.replace("【", "").replace("】", "").replace("[", "").replace("]", ""),
+                    "singleSubjectRange": None,
+                    "plannedEnrollment": None,
+                    "admissionScoreRange": None,
+                    "specialProgram": None,
+                    "retestInfo": retest_info if retest_info else None,
+                })
+
+            result["colleges"].append({
+                "collegeName": None,
+                "collegeWebsite": None,
+                "majors": college_majors,
+            })
+
+        return result
+
     def _clean_ocr_text(self, text: str) -> str:
         """清洗 OCR 文本，去除水印标签（保留实际数据内容）。"""
         cleaned = text
@@ -463,7 +595,8 @@ class ImageExtractor:
             else:
                 _notify("structure", "skip", "未配置 AI，仅返回 OCR 文本", 90)
 
-            # 无 AI 或 AI 失败时，返回基本结构
+            # 无 AI 或 AI 失败时，尝试从 OCR 文本提取基本信息
+            basic_data = self._extract_basic_from_ocr(cleaned_text)
             return {
                 "success": True,
                 "ocr_text": ocr_text,
@@ -471,8 +604,11 @@ class ImageExtractor:
                 "ocr_passes": passes,
                 "ocr_engines": engines,
                 "mode": "ocr_only",
-                "schoolName": None,
-                "colleges": [],
+                "schoolName": basic_data.get("schoolName"),
+                "schoolWebsite": basic_data.get("schoolWebsite"),
+                "duration": basic_data.get("duration"),
+                "tuition": basic_data.get("tuition"),
+                "colleges": basic_data.get("colleges", []),
                 "raw_text": cleaned_text,
             }
 
