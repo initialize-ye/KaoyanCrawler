@@ -377,11 +377,25 @@ class ImageExtractor:
             r'皮皮灰一志愿被刷统计->',
             r'皮皮信息-.*?(?=\s|$)',
             r'一志愿被刷统计->',
+            r'可至公众号回复【院校名称】获取更多资料',
+            r'可至.*?公众号回复.*?获取更多资料',
         ]
         for pattern in ad_sentences:
             cleaned = re.sub(pattern, '', cleaned)
 
-        # 3. 清理空格
+        # 3. 去除残留的短碎片
+        fragments = [
+            r'公众号',
+            r'关注',
+            r'统计',
+            r'灰灰',
+            r'皮皮',
+            r'东东',
+        ]
+        for frag in fragments:
+            cleaned = re.sub(frag, '', cleaned)
+
+        # 4. 清理空格
         cleaned = re.sub(r'[ \t]+', ' ', cleaned)
         cleaned = cleaned.strip()
 
