@@ -110,6 +110,10 @@
     <div v-if="result && !loading" class="overview-section">
       <!-- 顶部操作栏 -->
       <div class="overview-toolbar">
+        <el-button type="success" @click="saveToDatabase" :loading="saving" :disabled="!result.schoolName">
+          <el-icon><Check /></el-icon>
+          保存到数据库
+        </el-button>
         <el-button type="primary" plain size="small" @click="resetUpload">
           <el-icon><RefreshRight /></el-icon>
           重新上传
@@ -258,7 +262,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { CircleCheckFilled, CircleCloseFilled, MoreFilled, Close, RefreshRight, Link, MagicStick, UploadFilled } from '@element-plus/icons-vue'
+import { CircleCheckFilled, CircleCloseFilled, MoreFilled, Close, RefreshRight, Link, MagicStick, UploadFilled, Check } from '@element-plus/icons-vue'
 import { useDialog } from '../composables/useDialog'
 
 defineEmits(['open-settings'])
@@ -268,6 +272,7 @@ const { isMobile, dialogWidth } = useDialog('900px')
 const visible = ref(false)
 const aiAvailable = ref(false)
 const loading = ref(false)
+const saving = ref(false)
 const selectedFile = ref(null)
 const previewUrl = ref('')
 const result = ref(null)
@@ -483,6 +488,33 @@ function showMajorDetail(major) {
 
 function hasRetestInfo(info) {
   return info.time || info.method || info.content || info.scoreRule || info.remark
+}
+
+async function saveToDatabase() {
+  if (!result.value || !result.value.schoolName) {
+    ElMessage.warning('没有可保存的数据')
+    return
+  }
+
+  saving.value = true
+  try {
+    const resp = await fetch('/api/save-image-data', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(result.value),
+    })
+
+    const data = await resp.json()
+    if (data.success) {
+      ElMessage.success(data.message || '保存成功')
+    } else {
+      ElMessage.error(data.error || '保存失败')
+    }
+  } catch (e) {
+    ElMessage.error('保存失败: ' + e.message)
+  } finally {
+    saving.value = false
+  }
 }
 
 defineExpose({ open })

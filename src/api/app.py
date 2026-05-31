@@ -2101,3 +2101,57 @@ async def extract_image(file: UploadFile = File(...)):
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@app.post("/api/save-image-data")
+async def save_image_data(data: dict):
+    """保存图片识别结果到数据库（按学校分类）。"""
+    from datetime import datetime
+
+    db = get_db()
+    school_name = data.get("schoolName", "")
+    if not school_name:
+        return {"success": False, "error": "缺少学校名称"}
+
+    saved_count = 0
+    errors = []
+    year = datetime.now().year
+
+    async with aiosqlite.connect(db.db_path) as conn:
+        for college in data.get("colleges", []):
+            college_name = college.get("collegeName", "")
+            for major in college.get("majors", []):
+                major_name = major.get("majorName", "")
+                major_code = major.get("majorCode", "")
+                if not major_name:
+                    continue
+
+                subjects = major.get("subjects", [])
+                subject1 = subjects[0] if len(subjects) > 0 else None
+                subject2 = subjects[1] if len(subjects) > 1 else None
+                subject3 = subjects[2] if len(subjects) > 2 else None
+                subject4 = subjects[3] if len(subjects) > 3 else None
+
+                try:
+                    await conn.execute(
+                        """INSERT OR REPLACE INTO exam_subjects
+                        (university, year, major_code, major_name, department,
+                         research_direction, enrollment, subject1, subject2, subject3, subject4,
+                         source_url, crawl_time)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                        (
+                            school_name, year, major_code or '', major_name,
+                            college_name, '', major.get("plannedEnrollment"),
+                            subject1, subject2, subject3, subject4,
+                            '', datetime.now().isoformat(),
+                        )
+                    )
+                    saved_count += 1
+                except Exception as e:
+                    errors.append(f"{major_name}: {str(e)}")
+
+        await conn.commit()
+
+    if errors:
+        return {"success": True, "message": f"保存完成: {saved_count} 条成功, {len(errors)} 条失败", "errors": errors}
+    return {"success": True, "message": f"成功保存 {saved_count} 条数据到 {school_name}"}
