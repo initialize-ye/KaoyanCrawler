@@ -26,46 +26,52 @@ from src.config.settings import AI_PROVIDERS
 
 # ── 提示词模板 ──
 
-OCR_STRUCTURING_PROMPT = """你是一个考研招生数据清洗专家。以下是从考研招生图片中通过 OCR 提取的原始文本。
+OCR_STRUCTURING_PROMPT = """你是一个考研招生数据提取专家。以下是从考研招生图片中通过 OCR 提取的文本。
 
-由于 OCR 识别可能有误差，请你：
-1. 修正明显的 OCR 错误（如 0/O、1/l/I、8/B、5/S 混淆）
-2. 忽略水印文字（如"灰灰考研"等无关内容）
-3. 识别并提取结构化的招生数据
-4. 补全缺失的逻辑关系（如根据初试科目推断专业类型）
+任务：从文本中提取所有学院和专业的招生数据，返回 JSON。
 
-OCR 原始文本：
+OCR 文本：
 {ocr_text}
 
-请提取以下信息并返回 JSON：
+提取规则：
+1. 识别所有学院（如"计算机科学与工程学院"、"软件学院"等）
+2. 每个学院下的所有专业都要提取
+3. 专业代码是6位数字（如081200），括号内的代码也要提取（如（081200））
+4. 分数只填数字，"复试最低分327"提取为"327"
+5. 分数区间格式："382【366-401】"提取为retestScoreLine="382", retestScoreRange="366-401"
+6. 人数提取："13+1专项"提取为retestCount="13"
+7. 初试科目：识别"政治、英语、数学、408统考"等科目
+8. 忽略"灰灰考研统计"、"皮皮灰统计"等水印文字
+9. 忽略"一志愿被刷统计"等无关内容
 
+返回 JSON：
 {{
   "schoolName": "学校全称",
-  "schoolWebsite": "研究生院官网 URL（如有）",
-  "duration": "学制（如：3年）",
-  "tuition": "学费（如：8000元/年）",
-  "scholarship": "奖学金政策（如有）",
+  "schoolWebsite": "官网URL",
+  "duration": "学制",
+  "tuition": "学费",
+  "scholarship": "奖学金",
   "colleges": [
     {{
       "collegeName": "学院名称",
-      "collegeWebsite": "学院官网（如有）",
+      "collegeWebsite": "学院官网",
       "majors": [
         {{
           "majorName": "专业名称",
-          "majorCode": "6位专业代码（如 081200）",
-          "subjects": ["科目1", "科目2", "科目3", "科目4"],
-          "retestScoreLine": "复试分数线（数字）",
-          "retestCount": "复试人数（整数）",
-          "retestScoreRange": "复试分数区间（如 320-385）",
-          "singleSubjectRange": "单科分数区间",
-          "plannedEnrollment": "招生人数（整数）",
-          "admissionScoreRange": "录取分数区间",
-          "specialProgram": "特殊项目（专项计划/校企联合/中外合作/null）",
+          "majorCode": "专业代码",
+          "subjects": ["政治", "英语", "数学", "408统考"],
+          "retestScoreLine": "复试线",
+          "retestCount": "复试人数",
+          "retestScoreRange": "分数区间",
+          "singleSubjectRange": "单科区间",
+          "plannedEnrollment": "招生人数",
+          "admissionScoreRange": "录取区间",
+          "specialProgram": null,
           "retestInfo": {{
             "time": "复试时间",
             "method": "复试形式",
             "content": "复试内容",
-            "scoreRule": "成绩计算方式",
+            "scoreRule": "成绩计算",
             "remark": "备注"
           }}
         }}
@@ -74,16 +80,7 @@ OCR 原始文本：
   ]
 }}
 
-数据清洗规则：
-1. 专业代码：必须是6位数字，无法识别则填 null
-2. 分数：只保留数字，不带"分"字
-3. 分数区间：用"-"连接（如"320-385"）
-4. 人数：整数
-5. URL：完整格式（http:// 或 https://）
-6. 缺失字段：填 null
-7. 忽略水印和无关文字
-8. 不要遗漏任何学院和专业
-9. 只返回 JSON，不要其他文字"""
+只返回 JSON，不要其他文字。"""
 
 
 class OCREngine:
@@ -421,6 +418,12 @@ class ImageExtractor:
             # 清洗 OCR 文本
             _notify("clean", "running", "正在去除水印和无关内容...", 50)
             cleaned_text = self._clean_ocr_text(ocr_text)
+
+            # 如果清洗后文本太短，使用原文
+            if len(cleaned_text) < 50:
+                logger.warning(f"清洗后文本过短({len(cleaned_text)}字符)，使用原始OCR文本")
+                cleaned_text = ocr_text
+
             _notify("clean", "done", f"清洗完成: {len(ocr_text)} → {len(cleaned_text)} 字符", 60)
 
             # LLM 结构化
