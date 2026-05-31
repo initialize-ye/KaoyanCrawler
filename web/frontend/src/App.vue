@@ -47,22 +47,14 @@
     <main class="google-main">
       <div class="google-main__inner">
         <!-- 学校列表视图 -->
-        <div v-if="!selectedSchool">
-          <!-- 统计面板 -->
-          <div class="google-stats-row">
-            <StatsPanel ref="statsPanel" />
-          </div>
-
-          <!-- 学校列表 -->
-          <div class="google-content">
-            <SchoolList
-              :schools="schoolList"
-              :loading="schoolsLoading"
-              :selectedSchool="selectedSchool"
-              @select="selectSchool"
-              @delete="deleteSchool"
-            />
-          </div>
+        <div v-if="!selectedSchool" class="google-content">
+          <SchoolList
+            :schools="schoolList"
+            :loading="schoolsLoading"
+            :selectedSchool="selectedSchool"
+            @select="selectSchool"
+            @delete="deleteSchool"
+          />
         </div>
 
         <!-- 学校详情视图 -->
@@ -107,7 +99,6 @@
 import { ref, defineAsyncComponent, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import axios from 'axios'
-import StatsPanel from './components/StatsPanel.vue'
 import SchoolList from './components/SchoolList.vue'
 import SchoolDetail from './components/SchoolDetail.vue'
 import ToastContainer from './components/ToastContainer.vue'
@@ -119,7 +110,6 @@ const SettingsDialog = defineAsyncComponent(() => import('./components/SettingsD
 
 const { success: showToast } = useToast()
 
-const statsPanel = ref(null)
 const aiExtractor = ref(null)
 const imageExtractor = ref(null)
 const settingsDialog = ref(null)
@@ -176,7 +166,6 @@ const handleSearch = () => {
 
 // 刷新所有数据
 const refreshAll = () => {
-  statsPanel.value?.fetchStats()
   fetchSchools()
 }
 
@@ -350,10 +339,6 @@ onMounted(() => {
   max-width: 1440px;
   margin: 0 auto;
   padding: var(--google-space-6);
-}
-
-.google-stats-row {
-  margin-bottom: var(--google-space-6);
 }
 
 .google-content {
