@@ -377,8 +377,8 @@ class ImageExtractor:
         colleges = re.findall(college_pattern, text)
 
         # 查找专业名称和分数线
-        # 格式：专业名称 ... 数字【数字-数字】
-        major_pattern = r'([一-龥]{2,}(?:工程|技术|科学|学|理论|设计))\s+.*?(\d+[【\[]\d+[-~]\d+[】\]])'
+        # 格式：专业名称 ... 【数字-数字】或 数字【数字-数字】
+        major_pattern = r'([一-龥]{2,}(?:工程|技术|科学|学|理论|设计))\s+.*?(\d*[【\[]\d+[-~]\d+[】\]])'
         majors = re.findall(major_pattern, text)
 
         # 查找复试信息
