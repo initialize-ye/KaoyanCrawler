@@ -524,11 +524,15 @@ class ImageExtractor:
             resp.raise_for_status()
             data = resp.json()
             text = data["content"][0]["text"]
-            logger.debug(f"LLM 响应前500字符: {text[:500]}")
+            logger.info(f"LLM 响应长度: {len(text)} 字符")
+            logger.info(f"LLM 响应前1000字符: {text[:1000]}")
             result = self._parse_json_response(text)
             # 只有解析成功才设置 success=True
             if "error" not in result:
                 result["success"] = True
+                # 确保 colleges 字段存在
+                if "colleges" not in result:
+                    result["colleges"] = []
             return result
 
     async def _call_openai_compatible_text(self, prompt: str, max_tokens: int) -> dict[str, Any]:
@@ -551,11 +555,15 @@ class ImageExtractor:
             resp.raise_for_status()
             data = resp.json()
             text = data["choices"][0]["message"]["content"]
-            logger.debug(f"LLM 响应前500字符: {text[:500]}")
+            logger.info(f"LLM 响应长度: {len(text)} 字符")
+            logger.info(f"LLM 响应前1000字符: {text[:1000]}")
             result = self._parse_json_response(text)
             # 只有解析成功才设置 success=True
             if "error" not in result:
                 result["success"] = True
+                # 确保 colleges 字段存在
+                if "colleges" not in result:
+                    result["colleges"] = []
             return result
 
     def _parse_json_response(self, text: str) -> dict[str, Any]:

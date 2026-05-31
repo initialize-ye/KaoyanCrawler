@@ -212,7 +212,14 @@
         </div>
       </div>
 
-      <el-empty v-else-if="result.success" description="未识别到专业数据" />
+      <el-empty v-else-if="result.success" description="未识别到专业数据">
+        <template #description>
+          <div>未识别到专业数据</div>
+          <div v-if="result.mode" style="font-size: 12px; color: var(--el-text-color-secondary); margin-top: 8px;">
+            模式: {{ result.mode }} | OCR轮数: {{ result.ocr_passes || 0 }}
+          </div>
+        </template>
+      </el-empty>
 
       <!-- OCR 调试信息 -->
       <el-collapse v-if="result.ocr_text" style="margin-top: 16px">
