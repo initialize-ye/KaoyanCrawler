@@ -2169,6 +2169,15 @@ async def save_image_data(data: dict):
     errors = []
     year = datetime.now().year
 
+    # 保存学校信息到 schools 表
+    await db.upsert_school(
+        name=school_name,
+        website=data.get("schoolWebsite", ""),
+        duration=data.get("duration", ""),
+        tuition=data.get("tuition", ""),
+        scholarship=data.get("scholarship", ""),
+    )
+
     async with aiosqlite.connect(db.db_path) as conn:
         # 支持新的 rows 格式（可编辑表格）
         rows = data.get("rows", [])

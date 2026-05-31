@@ -433,24 +433,37 @@ class Database:
         """获取所有学校及各表数据计数。"""
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
+            # 查询所有有数据的学校（包括schools表和各数据表）
             sql = """
+                WITH all_universities AS (
+                    SELECT name as university FROM schools
+                    UNION
+                    SELECT DISTINCT university FROM admission_records
+                    UNION
+                    SELECT DISTINCT university FROM exam_subjects
+                    UNION
+                    SELECT DISTINCT university FROM retest_rules
+                    UNION
+                    SELECT DISTINCT university FROM score_lines
+                )
                 SELECT
-                    s.name,
-                    s.website,
-                    s.duration,
-                    s.tuition,
-                    s.scholarship,
+                    u.university as name,
+                    COALESCE(s.website, '') as website,
+                    COALESCE(s.duration, '') as duration,
+                    COALESCE(s.tuition, '') as tuition,
+                    COALESCE(s.scholarship, '') as scholarship,
                     s.updated_at,
                     COALESCE(a.cnt, 0) as admission_count,
                     COALESCE(e.cnt, 0) as subject_count,
                     COALESCE(r.cnt, 0) as rule_count,
                     COALESCE(sl.cnt, 0) as score_line_count
-                FROM schools s
-                LEFT JOIN (SELECT university, COUNT(*) as cnt FROM admission_records GROUP BY university) a ON s.name = a.university
-                LEFT JOIN (SELECT university, COUNT(*) as cnt FROM exam_subjects GROUP BY university) e ON s.name = e.university
-                LEFT JOIN (SELECT university, COUNT(*) as cnt FROM retest_rules GROUP BY university) r ON s.name = r.university
-                LEFT JOIN (SELECT university, COUNT(*) as cnt FROM score_lines GROUP BY university) sl ON s.name = sl.university
-                ORDER BY s.name
+                FROM all_universities u
+                LEFT JOIN schools s ON u.university = s.name
+                LEFT JOIN (SELECT university, COUNT(*) as cnt FROM admission_records GROUP BY university) a ON u.university = a.university
+                LEFT JOIN (SELECT university, COUNT(*) as cnt FROM exam_subjects GROUP BY university) e ON u.university = e.university
+                LEFT JOIN (SELECT university, COUNT(*) as cnt FROM retest_rules GROUP BY university) r ON u.university = r.university
+                LEFT JOIN (SELECT university, COUNT(*) as cnt FROM score_lines GROUP BY university) sl ON u.university = sl.university
+                ORDER BY u.university
             """
             async with db.execute(sql) as cursor:
                 rows = await cursor.fetchall()
