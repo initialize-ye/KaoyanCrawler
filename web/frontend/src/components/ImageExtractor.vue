@@ -12,37 +12,60 @@
 
     <!-- 上传区域 -->
     <div class="upload-area" v-if="!result && !loading">
+      <!-- 图片预览网格 -->
+      <div v-if="selectedFiles.length" class="preview-grid">
+        <div v-for="(file, index) in selectedFiles" :key="index" class="preview-item">
+          <img :src="file.preview" :alt="file.name" />
+          <div class="preview-item__name">{{ file.name }}</div>
+          <button class="preview-item__remove" @click="removeFile(index)">
+            <el-icon><Close /></el-icon>
+          </button>
+          <div v-if="file.status" class="preview-item__status" :class="'status-' + file.status">
+            {{ file.statusText }}
+          </div>
+        </div>
+      </div>
+
       <el-upload
         ref="uploadRef"
         class="image-uploader"
         drag
+        multiple
         :auto-upload="false"
-        :limit="1"
+        :limit="10"
         :on-change="handleFileChange"
         :on-exceed="handleExceed"
         :before-upload="beforeUpload"
         accept="image/png,image/jpeg,image/gif,image/webp,image/bmp"
+        :show-file-list="false"
       >
-        <div v-if="!previewUrl" class="upload-placeholder">
+        <div class="upload-placeholder">
           <el-icon class="upload-icon"><UploadFilled /></el-icon>
           <div class="upload-text">拖拽考研招生图片到此处，或<em>点击上传</em></div>
-          <div class="upload-hint">支持 PNG、JPEG、GIF、WebP、BMP 格式，最大 20MB</div>
-        </div>
-        <div v-else class="upload-preview">
-          <img :src="previewUrl" alt="预览" />
+          <div class="upload-hint">支持同时上传多张图片（最多10张），自动合并识别结果</div>
         </div>
       </el-upload>
 
-      <el-button
-        type="primary"
-        size="large"
-        class="extract-btn"
-        :disabled="!selectedFile || !aiAvailable"
-        @click="startExtract"
-      >
-        <el-icon><MagicStick /></el-icon>
-        <span>开始识别</span>
-      </el-button>
+      <div class="action-buttons">
+        <el-button
+          type="primary"
+          size="large"
+          class="extract-btn"
+          :disabled="!selectedFiles.length || !aiAvailable"
+          @click="startExtract"
+        >
+          <el-icon><MagicStick /></el-icon>
+          <span>开始识别 ({{ selectedFiles.length }}张图片)</span>
+        </el-button>
+        <el-button
+          v-if="selectedFiles.length"
+          size="large"
+          @click="clearFiles"
+        >
+          <el-icon><Delete /></el-icon>
+          <span>清空</span>
+        </el-button>
+      </div>
     </div>
 
     <!-- 进度显示 -->
@@ -55,11 +78,23 @@
         </el-button>
       </div>
 
+      <!-- 图片处理进度 -->
+      <div v-if="selectedFiles.length > 1" class="image-progress">
+        <div class="image-progress__text">
+          正在处理第 {{ currentImageIndex + 1 }} / {{ selectedFiles.length }} 张图片
+        </div>
+        <el-progress
+          :percentage="Math.round((currentImageIndex / selectedFiles.length) * 100)"
+          :stroke-width="6"
+          status="success"
+        />
+      </div>
+
       <div class="crawl-stats">
         <div class="crawl-stats__items">
           <div class="crawl-stats__item">
             <div class="crawl-stats__val">{{ progressPercent }}%</div>
-            <div class="crawl-stats__label">识别进度</div>
+            <div class="crawl-stats__label">当前图片进度</div>
           </div>
           <div class="crawl-stats__item">
             <div class="crawl-stats__val">{{ steps.length }}</div>
@@ -96,10 +131,6 @@
           </div>
         </div>
       </div>
-
-      <div v-if="previewUrl" class="preview-small">
-        <img :src="previewUrl" alt="预览" />
-      </div>
     </div>
 
     <!-- 识别结果 - 可编辑表格 -->
@@ -111,6 +142,9 @@
             {{ result.success ? '识别成功' : '识别失败' }}
           </el-tag>
           <span v-if="result.schoolName" class="school-badge">{{ result.schoolName }}</span>
+          <el-tag v-if="result.imageCount > 1" type="info" size="small">
+            {{ result.imageCount }} 张图片合并
+          </el-tag>
         </div>
         <div class="result-toolbar__right">
           <el-button @click="resetUpload">
@@ -187,7 +221,7 @@
                   <el-input v-model="row.majorCode" size="small" placeholder="081200" />
                 </td>
                 <td>
-                  <el-input v-model="row.subjects" size="small" placeholder="政治、英语、数学、专业课" />
+                  <el-input v-model="row.subjects" size="small" placeholder="政治、英语一、数学一、408统考" />
                 </td>
                 <td>
                   <el-input v-model="row.retestScoreLine" size="small" placeholder="320" />
@@ -237,7 +271,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { CircleCheckFilled, CircleCloseFilled, MoreFilled, Close, RefreshRight, Link, MagicStick, UploadFilled, Check, Plus, Delete } from '@element-plus/icons-vue'
+import { CircleCheckFilled, CircleCloseFilled, MoreFilled, Close, RefreshRight, MagicStick, UploadFilled, Check, Plus, Delete } from '@element-plus/icons-vue'
 import { useDialog } from '../composables/useDialog'
 
 defineEmits(['open-settings', 'data-saved'])
@@ -248,12 +282,12 @@ const visible = ref(false)
 const aiAvailable = ref(false)
 const loading = ref(false)
 const saving = ref(false)
-const selectedFile = ref(null)
-const previewUrl = ref('')
+const selectedFiles = ref([])
 const result = ref(null)
 const uploadRef = ref(null)
 const editableData = ref([])
 const abortController = ref(null)
+const currentImageIndex = ref(0)
 
 // 进度相关
 const progressPercent = ref(0)
@@ -295,15 +329,14 @@ async function checkStatus() {
 }
 
 function resetUpload() {
-  selectedFile.value = null
-  previewUrl.value = ''
+  selectedFiles.value = []
   result.value = null
   editableData.value = []
   loading.value = false
   progressPercent.value = 0
   progressStatus.value = ''
   steps.value = []
-  uploadRef.value?.clearFiles()
+  currentImageIndex.value = 0
 }
 
 function onClose() {
@@ -315,13 +348,28 @@ function onClose() {
 
 function handleFileChange(file) {
   if (file?.raw) {
-    selectedFile.value = file.raw
-    previewUrl.value = URL.createObjectURL(file.raw)
+    selectedFiles.value.push({
+      file: file.raw,
+      name: file.name,
+      preview: URL.createObjectURL(file.raw),
+      status: null,
+      statusText: '',
+    })
   }
 }
 
 function handleExceed() {
-  ElMessage.warning('只能上传一张图片，请先清除已选图片')
+  ElMessage.warning('最多上传10张图片')
+}
+
+function removeFile(index) {
+  URL.revokeObjectURL(selectedFiles.value[index].preview)
+  selectedFiles.value.splice(index, 1)
+}
+
+function clearFiles() {
+  selectedFiles.value.forEach(f => URL.revokeObjectURL(f.preview))
+  selectedFiles.value = []
 }
 
 function beforeUpload(file) {
@@ -333,81 +381,110 @@ function beforeUpload(file) {
 }
 
 async function startExtract() {
-  if (!selectedFile.value || !aiAvailable.value) return
+  if (!selectedFiles.value.length || !aiAvailable.value) return
 
   loading.value = true
   result.value = null
   editableData.value = []
-  progressPercent.value = 0
-  progressStatus.value = ''
-  steps.value = []
+  currentImageIndex.value = 0
 
   abortController.value = new AbortController()
 
-  try {
-    const formData = new FormData()
-    formData.append('file', selectedFile.value)
+  // 存储所有图片的识别结果
+  const allResults = []
 
-    const resp = await fetch('/api/extract-image', {
-      method: 'POST',
-      body: formData,
-      signal: abortController.value.signal,
-    })
+  for (let i = 0; i < selectedFiles.value.length; i++) {
+    if (abortController.value.signal.aborted) break
 
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`)
+    currentImageIndex.value = i
+    selectedFiles.value[i].status = 'processing'
+    selectedFiles.value[i].statusText = '识别中...'
 
-    const reader = resp.body.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
-    let eventType = ''
+    // 重置进度
+    progressPercent.value = 0
+    steps.value = []
 
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
+    try {
+      const imageResult = await extractSingleImage(selectedFiles.value[i].file)
 
-      buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split('\n')
-      buffer = lines.pop() || ''
+      if (imageResult.success) {
+        allResults.push(imageResult)
+        selectedFiles.value[i].status = 'done'
+        selectedFiles.value[i].statusText = '完成'
+      } else {
+        selectedFiles.value[i].status = 'error'
+        selectedFiles.value[i].statusText = imageResult.error || '失败'
+      }
+    } catch (e) {
+      selectedFiles.value[i].status = 'error'
+      selectedFiles.value[i].statusText = e.message
+    }
+  }
 
-      for (const line of lines) {
-        if (line.startsWith('event: ')) {
-          eventType = line.slice(7).trim()
-          continue
-        }
-        if (line.startsWith('data: ')) {
-          try {
-            const data = JSON.parse(line.slice(6))
-            if (eventType === 'progress' || (data.step && data.status)) {
-              handleProgressEvent(data)
-            } else if (eventType === 'result' || data.success !== undefined) {
-              result.value = data
-              progressPercent.value = 100
-              progressStatus.value = data.success ? 'success' : 'exception'
-              if (data.success) {
-                buildEditableData(data)
-                ElMessage.success('图片识别完成，请检查数据后点击保存')
-              } else {
-                ElMessage.error(data.error || '识别失败')
-              }
-            }
-            eventType = ''
-          } catch (e) {
-            console.warn('SSE JSON 解析失败:', line, e)
+  // 合并所有结果
+  if (allResults.length > 0) {
+    const merged = mergeResults(allResults)
+    merged.imageCount = allResults.length
+    result.value = merged
+    buildEditableData(merged)
+    ElMessage.success(`识别完成，共处理 ${allResults.length} 张图片`)
+  } else {
+    result.value = { success: false, error: '所有图片识别失败' }
+    ElMessage.error('所有图片识别失败')
+  }
+
+  loading.value = false
+  abortController.value = null
+}
+
+async function extractSingleImage(file) {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const resp = await fetch('/api/extract-image', {
+    method: 'POST',
+    body: formData,
+    signal: abortController.value?.signal,
+  })
+
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`)
+
+  const reader = resp.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let eventType = ''
+  let finalResult = null
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() || ''
+
+    for (const line of lines) {
+      if (line.startsWith('event: ')) {
+        eventType = line.slice(7).trim()
+        continue
+      }
+      if (line.startsWith('data: ')) {
+        try {
+          const data = JSON.parse(line.slice(6))
+          if (eventType === 'progress' || (data.step && data.status)) {
+            handleProgressEvent(data)
+          } else if (eventType === 'result' || data.success !== undefined) {
+            finalResult = data
           }
+          eventType = ''
+        } catch (e) {
+          console.warn('SSE JSON 解析失败:', line, e)
         }
       }
     }
-  } catch (e) {
-    if (e.name === 'AbortError') {
-      ElMessage.info('已取消识别')
-    } else {
-      result.value = { success: false, error: `请求失败: ${e.message}` }
-      ElMessage.error(`识别失败: ${e.message}`)
-    }
-  } finally {
-    loading.value = false
-    abortController.value = null
   }
+
+  return finalResult || { success: false, error: '未收到识别结果' }
 }
 
 function handleProgressEvent(data) {
@@ -424,6 +501,74 @@ function handleProgressEvent(data) {
   }
 
   if (status === 'error') progressStatus.value = 'exception'
+}
+
+// 合并多张图片的识别结果
+function mergeResults(results) {
+  if (results.length === 1) return results[0]
+
+  const merged = {
+    success: true,
+    schoolName: results[0].schoolName || '',
+    schoolWebsite: results[0].schoolWebsite || '',
+    duration: results[0].duration || '',
+    tuition: results[0].tuition || '',
+    scholarship: results[0].scholarship || '',
+    colleges: [],
+    ocr_text: results.map(r => r.ocr_text || '').join('\n---\n'),
+    cleaned_text: results.map(r => r.cleaned_text || '').join('\n---\n'),
+    mode: results[0].mode || 'ocr+llm',
+    ocr_passes: results.reduce((sum, r) => sum + (r.ocr_passes || 0), 0),
+  }
+
+  // 合并学院和专业
+  const collegeMap = new Map()
+
+  for (const r of results) {
+    // 补充缺失的学校信息
+    if (!merged.schoolName && r.schoolName) merged.schoolName = r.schoolName
+    if (!merged.schoolWebsite && r.schoolWebsite) merged.schoolWebsite = r.schoolWebsite
+    if (!merged.duration && r.duration) merged.duration = r.duration
+    if (!merged.tuition && r.tuition) merged.tuition = r.tuition
+    if (!merged.scholarship && r.scholarship) merged.scholarship = r.scholarship
+
+    for (const college of (r.colleges || [])) {
+      const key = college.collegeName || '未知学院'
+      if (!collegeMap.has(key)) {
+        collegeMap.set(key, {
+          collegeName: college.collegeName,
+          collegeWebsite: college.collegeWebsite,
+          majors: [],
+        })
+      }
+      const existingCollege = collegeMap.get(key)
+
+      // 更新学院官网
+      if (college.collegeWebsite && !existingCollege.collegeWebsite) {
+        existingCollege.collegeWebsite = college.collegeWebsite
+      }
+
+      // 添加专业（去重）
+      for (const major of (college.majors || [])) {
+        const majorKey = major.majorName || '未知专业'
+        const existingMajor = existingCollege.majors.find(m => m.majorName === majorKey)
+
+        if (!existingMajor) {
+          existingCollege.majors.push({ ...major })
+        } else {
+          // 合并缺失的字段
+          for (const key of Object.keys(major)) {
+            if (!existingMajor[key] && major[key]) {
+              existingMajor[key] = major[key]
+            }
+          }
+        }
+      }
+    }
+  }
+
+  merged.colleges = Array.from(collegeMap.values())
+  return merged
 }
 
 // 将识别结果转为可编辑的扁平数据
@@ -483,7 +628,6 @@ async function saveToDatabase() {
     return
   }
 
-  // 过滤空行
   const validRows = editableData.value.filter(r => r.majorName.trim())
   if (!validRows.length) {
     ElMessage.warning('请至少填写一个专业名称')
@@ -537,10 +681,93 @@ defineExpose({ open })
   gap: 16px;
 }
 
+.preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 12px;
+  width: 100%;
+}
+
+.preview-item {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 2px solid var(--el-border-color-lighter);
+  transition: border-color 0.2s;
+}
+
+.preview-item:hover {
+  border-color: var(--el-color-primary);
+}
+
+.preview-item img {
+  width: 100%;
+  height: 100px;
+  object-fit: cover;
+  display: block;
+}
+
+.preview-item__name {
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+  padding: 4px 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.preview-item__remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.preview-item:hover .preview-item__remove {
+  opacity: 1;
+}
+
+.preview-item__status {
+  position: absolute;
+  bottom: 22px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 11px;
+  padding: 2px 0;
+}
+
+.status-processing {
+  background: var(--el-color-primary);
+  color: white;
+}
+
+.status-done {
+  background: var(--el-color-success);
+  color: white;
+}
+
+.status-error {
+  background: var(--el-color-danger);
+  color: white;
+}
+
 .image-uploader { width: 100%; }
 
 .image-uploader :deep(.el-upload-dragger) {
-  padding: 32px;
+  padding: 24px;
   border-radius: 12px;
   border: 2px dashed var(--el-border-color);
   transition: border-color 0.2s;
@@ -557,22 +784,36 @@ defineExpose({ open })
   gap: 8px;
 }
 
-.upload-icon { font-size: 48px; color: var(--el-text-color-placeholder); }
+.upload-icon { font-size: 40px; color: var(--el-text-color-placeholder); }
 
 .upload-text { font-size: 14px; color: var(--el-text-color-regular); }
 .upload-text em { color: var(--el-color-primary); font-style: normal; }
 
 .upload-hint { font-size: 12px; color: var(--el-text-color-placeholder); }
 
-.upload-preview { max-height: 400px; overflow: hidden; border-radius: 8px; }
-.upload-preview img { max-width: 100%; max-height: 400px; object-fit: contain; }
+.action-buttons {
+  display: flex;
+  gap: 12px;
+}
 
-.extract-btn { width: 200px; }
+.extract-btn { width: 220px; }
 
 /* 进度样式 */
 .progress-section { display: flex; flex-direction: column; gap: 20px; padding: 20px 0; }
 .progress-header { display: flex; align-items: center; justify-content: space-between; }
 .progress-title { font-size: 18px; font-weight: 600; color: var(--el-text-color-primary); margin: 0; }
+
+.image-progress {
+  background: var(--el-fill-color-lighter);
+  border-radius: 8px;
+  padding: 12px 16px;
+}
+
+.image-progress__text {
+  font-size: 14px;
+  color: var(--el-text-color-secondary);
+  margin-bottom: 8px;
+}
 
 .crawl-stats { padding: 16px 20px; background: var(--el-fill-color-lighter); border-radius: 8px; }
 .crawl-stats__items { display: flex; justify-content: space-around; margin-bottom: 12px; }
@@ -604,9 +845,6 @@ defineExpose({ open })
 .tl-tag--ok { background: #f0f9eb; color: #67c23a; }
 .tl-tag--err { background: var(--el-color-danger-light-9); color: var(--el-color-danger); }
 .tl-detail { font-size: 13px; color: var(--el-text-color-secondary); margin-top: 4px; line-height: 1.5; }
-
-.preview-small { display: flex; justify-content: center; padding: 16px; background: var(--el-fill-color-lighter); border-radius: 8px; }
-.preview-small img { max-height: 150px; object-fit: contain; border-radius: 4px; }
 
 /* 结果区域 */
 .result-section { display: flex; flex-direction: column; gap: 16px; }
@@ -658,5 +896,7 @@ defineExpose({ open })
   .result-toolbar { flex-direction: column; align-items: flex-start; }
   .result-toolbar__right { width: 100%; }
   .result-toolbar__right .el-button { flex: 1; }
+  .preview-grid { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); }
+  .preview-item img { height: 70px; }
 }
 </style>
