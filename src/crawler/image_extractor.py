@@ -340,6 +340,58 @@ class ImageExtractor:
             model=config.get("model", ""),
         )
 
+    def _clean_ocr_text(self, text: str) -> str:
+        """清洗 OCR 文本，去除水印标签（保留实际数据内容）。"""
+        cleaned = text
+
+        # 1. 去除独立的水印标签（前后是空格、标点或行首行尾）
+        # 这些是嵌入在数据间的水印标记，不会跨有用内容
+        watermark_tags = [
+            r'灰灰考研统计',
+            r'灰灰考研',
+            r'灰灰考',
+            r'皮皮灰统计',
+            r'皮皮灰',
+            r'东东老[考研码]统计',
+            r'东东老码统计',
+            r'东东老研统社',
+            r'考研统[店计]',
+            r'考研统计',
+        ]
+        for tag in watermark_tags:
+            cleaned = re.sub(tag, '', cleaned)
+
+        # 2. 去除整行都是水印/广告的行
+        ad_lines = [
+            r'^.*免责声明.*官网为准.*$',
+            r'^.*所有数据均来源.*公示的信息.*$',
+            r'^.*院校文章付费用户.*信息咨询等.*$',
+            r'^.*可领取【专属信息更新提醒服务】.*$',
+            r'^.*包含：院校改考动态提醒.*$',
+            r'^.*可至灰灰考研公众号.*$',
+            r'^.*如有错误.*请以官网为准.*$',
+            r'^.*灰灰公众号后台回复【院校】.*$',
+            r'^.*后台回复【院校名称】.*$',
+            r'^.*后台回复【院校】.*$',
+            r'^.*关注灰灰考研.*$',
+            r'^.*标记/代表.*暂时未找到.*$',
+            r'^.*如信息偏差.*$',
+            r'^.*灰灰考研更新.*$',
+            r'皮皮灰一志愿被刷统计->',
+            r'皮皮信息-.*$',
+        ]
+        for pattern in ad_lines:
+            cleaned = re.sub(pattern, '', cleaned, flags=re.MULTILINE)
+
+        # 3. 清理空格和空行
+        cleaned = re.sub(r'[ \t]+', ' ', cleaned)
+        cleaned = re.sub(r'\n\s*\n+', '\n', cleaned)
+        cleaned = re.sub(r'^\s+', '', cleaned, flags=re.MULTILINE)
+        cleaned = re.sub(r'\s+$', '', cleaned, flags=re.MULTILINE)
+        cleaned = cleaned.strip()
+
+        return cleaned
+
     async def extract_from_image(self, image_bytes: bytes, mime_type: str = "image/png", progress_callback=None) -> dict[str, Any]:
         """从图片中提取结构化数据（纯 OCR 模式）。"""
 
@@ -366,17 +418,23 @@ class ImageExtractor:
                 _notify("ocr", "error", "OCR 未能识别到文字", 100)
                 return {"success": False, "error": "OCR 未能识别到文字，请确保图片清晰"}
 
-            _notify("ocr", "done", f"OCR 完成: {passes} 轮识别, 提取 {len(ocr_text)} 字符", 60)
+            _notify("ocr", "done", f"OCR 完成: {passes} 轮识别, 提取 {len(ocr_text)} 字符", 45)
+
+            # 清洗 OCR 文本
+            _notify("clean", "running", "正在去除水印和无关内容...", 50)
+            cleaned_text = self._clean_ocr_text(ocr_text)
+            _notify("clean", "done", f"清洗完成: {len(ocr_text)} → {len(cleaned_text)} 字符", 60)
 
             # LLM 结构化
             if self.api_key:
-                _notify("structure", "running", "正在使用 AI 进行数据清洗和结构化...", 70)
-                prompt = OCR_STRUCTURING_PROMPT.format(ocr_text=ocr_text)
+                _notify("structure", "running", "正在使用 AI 进行数据清洗和结构化...", 65)
+                prompt = OCR_STRUCTURING_PROMPT.format(ocr_text=cleaned_text)
                 result = await self._call_llm(prompt)
 
                 if result.get("success"):
                     _notify("structure", "done", "AI 结构化完成", 95)
                     result["ocr_text"] = ocr_text
+                    result["cleaned_text"] = cleaned_text
                     result["ocr_passes"] = passes
                     result["ocr_engines"] = engines
                     result["mode"] = "ocr+llm"
@@ -390,12 +448,13 @@ class ImageExtractor:
             return {
                 "success": True,
                 "ocr_text": ocr_text,
+                "cleaned_text": cleaned_text,
                 "ocr_passes": passes,
                 "ocr_engines": engines,
                 "mode": "ocr_only",
                 "schoolName": None,
                 "colleges": [],
-                "raw_text": ocr_text,
+                "raw_text": cleaned_text,
             }
 
         except Exception as e:

@@ -48,7 +48,7 @@
     <!-- 进度显示 -->
     <div v-if="loading" class="progress-section">
       <div class="progress-header">
-        <h3 class="progress-title">正在识别图片...</h3>
+        <h3 class="progress-title">{{ currentStepName }}</h3>
         <el-button type="danger" plain size="small" @click="cancelExtract">
           <el-icon><Close /></el-icon>
           取消
@@ -244,6 +244,9 @@
 
       <!-- OCR 调试信息 -->
       <el-collapse v-if="result.ocr_text" style="margin-top: 16px">
+        <el-collapse-item title="OCR 清洗后文本（发送给AI）" name="cleaned">
+          <pre class="ocr-text">{{ result.cleaned_text || result.ocr_text }}</pre>
+        </el-collapse-item>
         <el-collapse-item title="OCR 原始文本（调试用）" name="ocr">
           <pre class="ocr-text">{{ result.ocr_text }}</pre>
         </el-collapse-item>
@@ -281,11 +284,19 @@ const steps = ref([])
 const STEP_NAMES = {
   init: '初始化引擎',
   ocr: 'OCR 文字提取',
-  structure: 'AI 结构化提取',
+  clean: '去除水印和噪声',
+  structure: 'AI 数据结构化',
 }
 
 const completedSteps = computed(() => {
   return steps.value.filter(s => s.status === 'done').length
+})
+
+const currentStepName = computed(() => {
+  const running = steps.value.find(s => s.status === 'running')
+  if (running) return running.name + '...'
+  if (steps.value.length === 0) return '准备中...'
+  return '正在识别图片...'
 })
 
 function open() {
