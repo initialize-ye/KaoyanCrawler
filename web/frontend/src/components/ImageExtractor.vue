@@ -289,7 +289,13 @@
         <template #description>
           <div>未识别到专业数据</div>
           <div v-if="result.mode" style="font-size: 12px; color: var(--el-text-color-secondary); margin-top: 8px;">
-            模式: {{ result.mode }} | OCR轮数: {{ result.ocr_passes || 0 }}
+            模式: {{ result.mode }} | OCR轮数: {{ result.ocr_passes || 0 }} | 学院数: {{ (result.colleges || []).length }}
+          </div>
+          <div v-if="result.schoolName" style="font-size: 12px; color: var(--el-color-success); margin-top: 4px;">
+            学校: {{ result.schoolName }}
+          </div>
+          <div v-if="result.error" style="font-size: 12px; color: var(--el-color-danger); margin-top: 4px;">
+            错误: {{ result.error }}
           </div>
         </template>
       </el-empty>
@@ -611,29 +617,60 @@ function mergeResults(results) {
   return merged
 }
 
+// 辅助函数：从对象中取值，兼容多种字段名格式
+function getField(obj, ...keys) {
+  for (const key of keys) {
+    if (obj[key] !== undefined && obj[key] !== null && obj[key] !== '') {
+      return obj[key]
+    }
+  }
+  return ''
+}
+
 // 将识别结果转为可编辑的扁平数据
 function buildEditableData(data) {
+  console.log('[buildEditableData] 输入数据 keys:', Object.keys(data))
+  console.log('[buildEditableData] colleges 数量:', (data.colleges || []).length)
+  if (data.colleges?.[0]?.majors?.[0]) {
+    console.log('[buildEditableData] 第一个专业示例:', JSON.stringify(data.colleges[0].majors[0]))
+  }
   const rows = []
   for (const college of (data.colleges || [])) {
     for (const major of (college.majors || [])) {
+      // 处理 subjects 字段：可能是数组、字符串、或以逗号/顿号分隔的字符串
+      let subjectsStr = ''
+      if (Array.isArray(major.subjects)) {
+        subjectsStr = major.subjects.filter(Boolean).join('、')
+      } else if (typeof major.subjects === 'string') {
+        subjectsStr = major.subjects
+      } else {
+        // 尝试从 subject1-4 组合
+        const parts = [major.subject1, major.subject2, major.subject3, major.subject4].filter(Boolean)
+        subjectsStr = parts.join('、')
+      }
+
       rows.push({
-        collegeName: college.collegeName || '',
-        collegeWebsite: college.collegeWebsite || '',
-        majorName: major.majorName || '',
-        majorCode: major.majorCode || '',
-        subjects: (major.subjects || []).join('、'),
-        plannedEnrollment: major.plannedEnrollment || '',
-        retestScoreLine: major.retestScoreLine || '',
-        retestCount: major.retestCount || '',
-        admissionCount: major.admissionCount || '',
-        admissionRatio: major.admissionRatio || '',
-        admissionMinScore: major.admissionMinScore || '',
-        admissionMedianScore: major.admissionMedianScore || '',
-        admissionMaxScore: major.admissionMaxScore || '',
-        admissionAvgScore: major.admissionAvgScore || '',
-        transferType: major.transferType || '',
+        collegeName: getField(college, 'collegeName', 'college_name', 'department', 'dept') || '',
+        collegeWebsite: getField(college, 'collegeWebsite', 'college_website') || '',
+        majorName: getField(major, 'majorName', 'major_name', 'name') || '',
+        majorCode: getField(major, 'majorCode', 'major_code', 'code') || '',
+        subjects: subjectsStr,
+        plannedEnrollment: getField(major, 'plannedEnrollment', 'planned_enrollment', 'enrollment', 'recruitCount', '招生人数') || '',
+        retestScoreLine: getField(major, 'retestScoreLine', 'retest_score_line', 'scoreLine', '复试分数线') || '',
+        retestCount: getField(major, 'retestCount', 'retest_count', '复试人数') || '',
+        admissionCount: getField(major, 'admissionCount', 'admission_count', '录取人数') || '',
+        admissionRatio: getField(major, 'admissionRatio', 'admission_ratio', '复录比') || '',
+        admissionMinScore: getField(major, 'admissionMinScore', 'admission_min_score', 'minScore', '最低分') || '',
+        admissionMedianScore: getField(major, 'admissionMedianScore', 'admission_median_score', 'medianScore', '中位数') || '',
+        admissionMaxScore: getField(major, 'admissionMaxScore', 'admission_max_score', 'maxScore', '最高分') || '',
+        admissionAvgScore: getField(major, 'admissionAvgScore', 'admission_avg_score', 'avgScore', '平均分') || '',
+        transferType: getField(major, 'transferType', 'transfer_type', '调剂类型') || '',
       })
     }
+  }
+  console.log('[buildEditableData] 生成行数:', rows.length)
+  if (rows.length > 0) {
+    console.log('[buildEditableData] 第一行示例:', JSON.stringify(rows[0]))
   }
   editableData.value = rows
 }

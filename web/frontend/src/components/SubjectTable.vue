@@ -26,7 +26,7 @@
         <div v-show="!group.collapsed" class="group-body" role="region">
           <div class="table-scroll">
             <el-table :data="group.records" stripe border size="small" style="width: 100%"
-              :max-height="350" empty-text="暂无数据">
+              :max-height="500" empty-text="暂无数据">
               <el-table-column prop="department" label="学院" min-width="140" show-overflow-tooltip />
               <el-table-column prop="major_code" label="专业代码" width="100" />
               <el-table-column prop="major_name" label="专业名称" min-width="150" show-overflow-tooltip />
@@ -36,12 +36,62 @@
                   <span v-else class="text-muted">-</span>
                 </template>
               </el-table-column>
+              <el-table-column prop="retest_score_line" label="复试线" width="80" align="center">
+                <template #default="{ row }">
+                  <span v-if="row.retest_score_line" class="score-highlight">{{ row.retest_score_line }}</span>
+                  <span v-else class="text-muted">-</span>
+                </template>
+              </el-table-column>
+              <el-table-column prop="retest_count" label="复试人数" width="80" align="center">
+                <template #default="{ row }">
+                  <span v-if="row.retest_count">{{ row.retest_count }}</span>
+                  <span v-else class="text-muted">-</span>
+                </template>
+              </el-table-column>
+              <el-table-column prop="admission_count" label="录取人数" width="80" align="center">
+                <template #default="{ row }">
+                  <span v-if="row.admission_count">{{ row.admission_count }}</span>
+                  <span v-else class="text-muted">-</span>
+                </template>
+              </el-table-column>
+              <el-table-column prop="admission_ratio" label="复录比" width="70" align="center">
+                <template #default="{ row }">
+                  <span v-if="row.admission_ratio">{{ row.admission_ratio }}</span>
+                  <span v-else class="text-muted">-</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="录取分数" align="center">
+                <el-table-column prop="admission_min_score" label="最低" width="65" align="center">
+                  <template #default="{ row }">
+                    <span v-if="row.admission_min_score">{{ row.admission_min_score }}</span>
+                    <span v-else class="text-muted">-</span>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="admission_avg_score" label="平均" width="65" align="center">
+                  <template #default="{ row }">
+                    <span v-if="row.admission_avg_score">{{ row.admission_avg_score }}</span>
+                    <span v-else class="text-muted">-</span>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="admission_max_score" label="最高" width="65" align="center">
+                  <template #default="{ row }">
+                    <span v-if="row.admission_max_score">{{ row.admission_max_score }}</span>
+                    <span v-else class="text-muted">-</span>
+                  </template>
+                </el-table-column>
+              </el-table-column>
               <el-table-column prop="research_direction" label="研究方向" min-width="120" show-overflow-tooltip />
               <el-table-column prop="subject1" label="政治" min-width="120" show-overflow-tooltip />
               <el-table-column prop="subject2" label="外语" min-width="120" show-overflow-tooltip />
               <el-table-column prop="subject3" label="业务课一" min-width="140" show-overflow-tooltip />
               <el-table-column prop="subject4" label="业务课二" min-width="140" show-overflow-tooltip />
-              <el-table-column label="操作" width="80">
+              <el-table-column prop="transfer_type" label="调剂" width="80" align="center">
+                <template #default="{ row }">
+                  <el-tag v-if="row.transfer_type" type="warning" size="small">{{ row.transfer_type }}</el-tag>
+                  <span v-else class="text-muted">-</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="80" fixed="right">
                 <template #default="{ row }">
                   <el-button type="danger" size="small" text @click="deleteRow(row)">
                     删除
@@ -270,6 +320,15 @@ defineExpose({ fetchData })
 
 .empty-tip {
   padding: 40px 0;
+}
+
+.score-highlight {
+  color: var(--el-color-danger);
+  font-weight: 600;
+}
+
+.text-muted {
+  color: var(--el-text-color-placeholder);
 }
 
 .table-pagination {

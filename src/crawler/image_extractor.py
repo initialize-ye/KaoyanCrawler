@@ -612,9 +612,20 @@ class ImageExtractor:
                     result["ocr_passes"] = passes
                     result["ocr_engines"] = engines
                     result["mode"] = "ocr+llm"
+                    # 确保 colleges 存在且非空
+                    colleges = result.get("colleges", [])
+                    if not colleges:
+                        logger.warning("LLM 返回了空的 colleges，尝试基本提取补充")
+                        basic_data = self._extract_basic_from_ocr(cleaned_text)
+                        if basic_data.get("colleges"):
+                            result["colleges"] = basic_data["colleges"]
+                            result["mode"] = "ocr+llm+fallback"
                     return result
                 else:
-                    _notify("structure", "warn", "AI 结构化失败，返回原始文本", 90)
+                    # LLM 解析失败，尝试用基本提取
+                    llm_error = result.get("error", "未知错误")
+                    _notify("structure", "warn", f"AI 结构化失败: {llm_error}，尝试基本提取", 90)
+                    logger.warning(f"LLM 结构化失败: {llm_error}")
             else:
                 _notify("structure", "skip", "未配置 AI，仅返回 OCR 文本", 90)
 
@@ -673,6 +684,80 @@ class ImageExtractor:
             logger.error(f"LLM 调用失败 [{self.provider}]: {error_msg}")
             return {"success": False, "error": error_msg}
 
+    def _normalize_response(self, result: dict[str, Any]) -> dict[str, Any]:
+        """规范化 LLM 返回的数据结构，兼容不同格式。"""
+        if not isinstance(result, dict):
+            return result
+
+        # 如果已经有 colleges 且非空，直接返回
+        if result.get("colleges"):
+            return result
+
+        # 情况1: LLM 返回了 majors 列表（扁平结构，没有 colleges 包装）
+        if result.get("majors") and isinstance(result["majors"], list):
+            college_name = result.get("schoolName", result.get("university", ""))
+            result["colleges"] = [{
+                "collegeName": college_name,
+                "collegeWebsite": None,
+                "majors": result["majors"],
+            }]
+            return result
+
+        # 情况2: LLM 返回了 subjects 列表（招生目录格式）
+        if result.get("subjects") and isinstance(result["subjects"], list):
+            # 将 subjects 按 department 分组
+            dept_map = {}
+            for s in result["subjects"]:
+                dept = s.get("department", s.get("collegeName", "未知学院"))
+                if dept not in dept_map:
+                    dept_map[dept] = []
+                # 统一字段名
+                major = {
+                    "majorName": s.get("major_name", s.get("majorName", "")),
+                    "majorCode": s.get("major_code", s.get("majorCode", "")),
+                    "researchDirection": s.get("research_direction", s.get("researchDirection", "")),
+                    "subjects": s.get("subjects", []),
+                    "plannedEnrollment": s.get("enrollment", s.get("plannedEnrollment")),
+                    "retestScoreLine": s.get("retest_score_line", s.get("retestScoreLine")),
+                    "retestCount": s.get("retest_count", s.get("retestCount")),
+                    "admissionCount": s.get("admission_count", s.get("admissionCount")),
+                    "admissionRatio": s.get("admission_ratio", s.get("admissionRatio")),
+                    "admissionMinScore": s.get("admission_min_score", s.get("admissionMinScore")),
+                    "admissionMedianScore": s.get("admission_median_score", s.get("admissionMedianScore")),
+                    "admissionMaxScore": s.get("admission_max_score", s.get("admissionMaxScore")),
+                    "admissionAvgScore": s.get("admission_avg_score", s.get("admissionAvgScore")),
+                    "transferType": s.get("transfer_type", s.get("transferType")),
+                }
+                dept_map[dept].append(major)
+
+            result["colleges"] = [
+                {"collegeName": dept, "collegeWebsite": None, "majors": majors}
+                for dept, majors in dept_map.items()
+            ]
+            return result
+
+        # 情况3: LLM 返回了 records 列表（录取名单格式）
+        if result.get("records") and isinstance(result["records"], list):
+            # 按 major 分组
+            major_map = {}
+            for r in result["records"]:
+                major = r.get("major", "未知专业")
+                if major not in major_map:
+                    major_map[major] = []
+                major_map[major].append(r)
+            # 转为 colleges 结构
+            result["colleges"] = [{
+                "collegeName": result.get("university", ""),
+                "collegeWebsite": None,
+                "majors": [
+                    {"majorName": major, "majorCode": "", "admissionCount": len(records)}
+                    for major, records in major_map.items()
+                ],
+            }]
+            return result
+
+        return result
+
     async def _call_claude_text(self, prompt: str, max_tokens: int) -> dict[str, Any]:
         async with httpx.AsyncClient(timeout=120.0) as client:
             resp = await client.post(
@@ -700,6 +785,7 @@ class ImageExtractor:
             # 只有解析成功才设置 success=True
             if "error" not in result:
                 result["success"] = True
+                result = self._normalize_response(result)
                 # 确保 colleges 字段存在
                 if "colleges" not in result:
                     result["colleges"] = []
@@ -733,6 +819,7 @@ class ImageExtractor:
             # 只有解析成功才设置 success=True
             if "error" not in result:
                 result["success"] = True
+                result = self._normalize_response(result)
                 # 确保 colleges 字段存在
                 if "colleges" not in result:
                     result["colleges"] = []
