@@ -162,7 +162,9 @@ const fetchData = async () => {
     rules.value = rulesResp.data.data || []
     scoreLines.value = slResp.data.data || []
   } catch (e) {
-    ElMessage.error('获取学校数据失败: ' + (e.response?.data?.detail || e.message))
+    const errDetail = e.response?.data?.detail
+    const errMsg = typeof errDetail === 'string' ? errDetail : e.message || '未知错误'
+    ElMessage.error('获取学校数据失败: ' + errMsg)
   }
 }
 
