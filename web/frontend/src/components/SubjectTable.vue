@@ -14,14 +14,12 @@
           @keydown.space.prevent="toggleCollapse(group)" tabindex="0"
           :aria-expanded="!group.collapsed" :aria-label="`${group.university} ${group.year}年 ${group.records.length}条`">
           <div class="group-header__left">
-            <el-icon class="group-arrow" :class="{ 'is-collapsed': group.collapsed }"><ArrowDown /></el-icon>
+            <span class="material-icons group-arrow" :class="{ 'is-collapsed': group.collapsed }">expand_more</span>
             <span class="group-title">{{ group.university }}</span>
-            <el-tag size="small" type="info">{{ group.year }}年</el-tag>
-            <el-tag size="small">{{ group.records.length }} 条</el-tag>
+            <span class="tag-chip">{{ group.year }}年</span>
+            <span class="tag-chip tag-chip--blue">{{ group.records.length }} 条</span>
           </div>
-          <el-button type="danger" size="small" text @click.stop="deleteGroup(group)">
-            删除全部
-          </el-button>
+          <button class="text-btn text-btn--danger" @click.stop="deleteGroup(group)">删除全部</button>
         </div>
         <div v-show="!group.collapsed" class="group-body" role="region">
           <div class="table-scroll">
@@ -120,7 +118,6 @@
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowDown } from '@element-plus/icons-vue'
 import { useResponsive } from '../composables/useResponsive'
 
 const { isMobile } = useResponsive()
@@ -243,61 +240,102 @@ defineExpose({ fetchData })
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: var(--space-3);
+  margin-bottom: var(--google-space-4);
 }
 
 .table-header__left {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--google-space-3);
 }
 
 .table-header__title {
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  color: var(--el-text-color-primary);
+  font-family: var(--google-font);
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--google-text-primary);
+}
+
+.tag-chip {
+  display: inline-block;
+  padding: 2px 10px;
+  background: var(--google-gray-100);
+  color: var(--google-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: var(--google-radius-full);
+}
+
+.tag-chip--blue {
+  background: var(--google-blue-bg);
+  color: var(--google-blue);
+}
+
+.text-btn {
+  border: none;
+  background: transparent;
+  font-family: var(--google-font);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 4px 12px;
+  border-radius: var(--google-radius-full);
+  transition: all var(--google-transition-fast);
+}
+
+.text-btn--danger {
+  color: var(--google-red);
+}
+
+.text-btn--danger:hover {
+  background: #fce8e6;
 }
 
 .group-list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--google-space-4);
 }
 
 .group-item {
-  border: 1px solid var(--el-border-color-lighter);
-  border-left: 3px solid var(--color-blue-500);
-  border-radius: var(--radius-lg);
+  background: var(--google-surface);
+  border: 1px solid var(--google-gray-200);
+  border-left: 3px solid var(--google-blue);
+  border-radius: var(--google-radius-md);
+  box-shadow: var(--google-elevation-1);
+  overflow: hidden;
 }
 
 .group-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-3) var(--space-4);
-  background: var(--surface-tinted);
+  padding: var(--google-space-3) var(--google-space-4);
+  background: var(--google-gray-50);
   cursor: pointer;
   user-select: none;
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  transition: background var(--google-transition-fast);
 }
 
 .group-header:hover {
-  background: var(--el-fill-color-light);
+  background: var(--google-gray-100);
 }
 
 .group-header:focus-visible {
-  outline: 2px solid var(--el-color-primary);
+  outline: 2px solid var(--google-blue);
   outline-offset: -2px;
 }
 
 .group-header__left {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--google-space-2);
 }
 
 .group-arrow {
-  transition: transform 0.2s;
+  color: var(--google-text-tertiary);
+  font-size: 20px;
+  transition: transform var(--google-transition-fast);
 }
 
 .group-arrow.is-collapsed {
@@ -305,12 +343,14 @@ defineExpose({ fetchData })
 }
 
 .group-title {
-  font-weight: 600;
-  font-size: var(--font-size-base);
+  font-family: var(--google-font);
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--google-text-primary);
 }
 
 .group-body {
-  padding: var(--space-3);
+  padding: var(--google-space-4);
 }
 
 .table-scroll {
@@ -319,20 +359,22 @@ defineExpose({ fetchData })
 }
 
 .empty-tip {
-  padding: 40px 0;
+  padding: 60px 0;
+  text-align: center;
+  color: var(--google-text-tertiary);
 }
 
 .score-highlight {
-  color: var(--el-color-danger);
+  color: var(--google-red);
   font-weight: 600;
 }
 
 .text-muted {
-  color: var(--el-text-color-placeholder);
+  color: var(--google-text-tertiary);
 }
 
 .table-pagination {
-  margin-top: var(--space-4);
+  margin-top: var(--google-space-4);
   display: flex;
   justify-content: flex-end;
 }

@@ -14,14 +14,12 @@
           @keydown.space.prevent="toggleCollapse(group)" tabindex="0"
           :aria-expanded="!group.collapsed" :aria-label="`${group.university} ${group.year}年 ${group.records.length}条`">
           <div class="group-header__left">
-            <el-icon class="group-arrow" :class="{ 'is-collapsed': group.collapsed }"><ArrowDown /></el-icon>
+            <span class="material-icons group-arrow" :class="{ 'is-collapsed': group.collapsed }">expand_more</span>
             <span class="group-title">{{ group.university }}</span>
-            <el-tag size="small" type="info">{{ group.year }}年</el-tag>
-            <el-tag size="small">{{ group.records.length }} 条</el-tag>
+            <span class="tag-chip">{{ group.year }}年</span>
+            <span class="tag-chip tag-chip--blue">{{ group.records.length }} 条</span>
           </div>
-          <el-button type="danger" size="small" text @click.stop="deleteGroup(group)">
-            删除全部
-          </el-button>
+          <button class="text-btn text-btn--danger" @click.stop="deleteGroup(group)">删除全部</button>
         </div>
         <div v-show="!group.collapsed" class="group-body" role="region">
           <div class="table-scroll">
@@ -90,7 +88,6 @@
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowDown } from '@element-plus/icons-vue'
 import { useResponsive } from '../composables/useResponsive'
 
 const { isMobile } = useResponsive()
@@ -231,7 +228,7 @@ defineExpose({ fetchData })
 .admission-table {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--google-space-4);
 }
 
 .table-header {
@@ -243,24 +240,57 @@ defineExpose({ fetchData })
 .table-header__left {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--google-space-3);
 }
 
 .table-header__title {
+  font-family: var(--google-font);
   font-size: 16px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
+  font-weight: 500;
+  color: var(--google-text-primary);
 }
+
+.tag-chip {
+  display: inline-block;
+  padding: 2px 10px;
+  background: var(--google-gray-100);
+  color: var(--google-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: var(--google-radius-full);
+}
+
+.tag-chip--blue {
+  background: var(--google-blue-bg);
+  color: var(--google-blue);
+}
+
+.text-btn {
+  border: none;
+  background: transparent;
+  font-family: var(--google-font);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 4px 12px;
+  border-radius: var(--google-radius-full);
+  transition: all var(--google-transition-fast);
+}
+
+.text-btn--danger { color: var(--google-red); }
+.text-btn--danger:hover { background: #fce8e6; }
 
 .group-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--google-space-4);
 }
 
 .group-item {
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 8px;
+  background: var(--google-surface);
+  border: 1px solid var(--google-gray-200);
+  border-radius: var(--google-radius-md);
+  box-shadow: var(--google-elevation-1);
   overflow: hidden;
 }
 
@@ -268,39 +298,36 @@ defineExpose({ fetchData })
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
-  background: var(--el-fill-color-lighter);
+  padding: var(--google-space-3) var(--google-space-4);
+  background: var(--google-gray-50);
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: background var(--google-transition-fast);
 }
 
-.group-header:hover {
-  background: var(--el-fill-color-light);
-}
+.group-header:hover { background: var(--google-gray-100); }
 
 .group-header__left {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--google-space-2);
 }
 
 .group-arrow {
-  transition: transform 0.2s;
+  color: var(--google-text-tertiary);
+  font-size: 20px;
+  transition: transform var(--google-transition-fast);
 }
 
-.group-arrow.is-collapsed {
-  transform: rotate(-90deg);
-}
+.group-arrow.is-collapsed { transform: rotate(-90deg); }
 
 .group-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
+  font-family: var(--google-font);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--google-text-primary);
 }
 
-.group-body {
-  padding: 12px;
-}
+.group-body { padding: var(--google-space-4); }
 
 .table-scroll {
   overflow-x: auto;
@@ -310,34 +337,26 @@ defineExpose({ fetchData })
 .table-pagination {
   display: flex;
   justify-content: flex-end;
-  padding-top: 8px;
+  padding-top: var(--google-space-2);
 }
 
 .empty-tip {
-  padding: 40px 0;
+  padding: 60px 0;
+  text-align: center;
+  color: var(--google-text-tertiary);
 }
 
 /* 分数样式 */
-.score-high {
-  color: #67c23a;
-  font-weight: 600;
-}
-
-.score-mid {
-  color: #e6a23c;
-  font-weight: 500;
-}
-
-.score-low {
-  color: #909399;
-}
+.score-high { color: var(--google-green); font-weight: 600; }
+.score-mid { color: var(--google-yellow-dark); font-weight: 500; }
+.score-low { color: var(--google-text-tertiary); }
 
 /* 状态样式 */
 .status-admitted {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: #67c23a;
+  color: var(--google-green);
   font-weight: 600;
 }
 
@@ -345,7 +364,7 @@ defineExpose({ fetchData })
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: #e6a23c;
+  color: var(--google-yellow-dark);
   font-weight: 500;
 }
 
@@ -356,29 +375,20 @@ defineExpose({ fetchData })
   border-radius: 50%;
 }
 
-.status-dot--status-admitted {
-  background: #67c23a;
-}
-
-.status-dot--status-waiting {
-  background: #e6a23c;
-}
+.status-dot--status-admitted { background: var(--google-green); }
+.status-dot--status-waiting { background: var(--google-yellow-dark); }
 
 @media (max-width: 768px) {
   .table-header {
     flex-direction: column;
     align-items: flex-start;
-    gap: 8px;
+    gap: var(--google-space-2);
   }
-
   .group-header {
     flex-direction: column;
     align-items: flex-start;
-    gap: 8px;
+    gap: var(--google-space-2);
   }
-
-  .table-pagination {
-    justify-content: center;
-  }
+  .table-pagination { justify-content: center; }
 }
 </style>

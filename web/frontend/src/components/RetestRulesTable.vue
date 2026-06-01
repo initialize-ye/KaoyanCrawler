@@ -14,14 +14,12 @@
           @keydown.space.prevent="toggleCollapse(group)" tabindex="0"
           :aria-expanded="!group.collapsed" :aria-label="`${group.university} ${group.year}年 ${group.records.length}条`">
           <div class="group-header__left">
-            <el-icon class="group-arrow" :class="{ 'is-collapsed': group.collapsed }"><ArrowDown /></el-icon>
+            <span class="material-icons group-arrow" :class="{ 'is-collapsed': group.collapsed }">expand_more</span>
             <span class="group-title">{{ group.university }}</span>
-            <el-tag size="small" type="info">{{ group.year }}年</el-tag>
-            <el-tag size="small">{{ group.records.length }} 条</el-tag>
+            <span class="tag-chip">{{ group.year }}年</span>
+            <span class="tag-chip tag-chip--blue">{{ group.records.length }} 条</span>
           </div>
-          <el-button type="danger" size="small" text @click.stop="deleteGroup(group)">
-            删除全部
-          </el-button>
+          <button class="text-btn text-btn--danger" @click.stop="deleteGroup(group)">删除全部</button>
         </div>
         <div v-show="!group.collapsed" class="group-body" role="region">
           <div v-for="(rule, i) in group.records" :key="i" class="rule-item">
@@ -83,7 +81,6 @@
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowDown } from '@element-plus/icons-vue'
 import { useResponsive } from '../composables/useResponsive'
 
 const { isMobile } = useResponsive()
@@ -203,7 +200,8 @@ defineExpose({ fetchData })
 .rules-table {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--google-space-4);
+  font-family: var(--google-font-roboto);
 }
 
 .table-header {
@@ -215,24 +213,25 @@ defineExpose({ fetchData })
 .table-header__left {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--google-space-3);
 }
 
 .table-header__title {
+  font-family: var(--google-font);
   font-size: 16px;
   font-weight: 600;
-  color: var(--el-text-color-primary);
+  color: var(--google-text-primary);
 }
 
 .group-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--google-space-3);
 }
 
 .group-item {
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 8px;
+  border: 1px solid var(--google-gray-200);
+  border-radius: var(--google-radius-md);
   overflow: hidden;
 }
 
@@ -240,24 +239,25 @@ defineExpose({ fetchData })
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
-  background: var(--el-fill-color-lighter);
+  padding: var(--google-space-3) var(--google-space-4);
+  background: var(--google-gray-50);
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: background-color var(--google-transition-fast);
 }
 
 .group-header:hover {
-  background: var(--el-fill-color-light);
+  background: var(--google-gray-100);
 }
 
 .group-header__left {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--google-space-3);
 }
 
 .group-arrow {
-  transition: transform 0.2s;
+  transition: transform var(--google-transition-fast);
+  color: var(--google-text-secondary);
 }
 
 .group-arrow.is-collapsed {
@@ -265,16 +265,17 @@ defineExpose({ fetchData })
 }
 
 .group-title {
+  font-family: var(--google-font);
   font-size: 15px;
   font-weight: 600;
-  color: var(--el-text-color-primary);
+  color: var(--google-text-primary);
 }
 
 .group-body {
-  padding: 12px;
+  padding: var(--google-space-3);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--google-space-3);
 }
 
 .empty-tip {
@@ -282,8 +283,8 @@ defineExpose({ fetchData })
 }
 
 .rule-item {
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 8px;
+  border: 1px solid var(--google-gray-200);
+  border-radius: var(--google-radius-md);
   overflow: hidden;
 }
 
@@ -291,23 +292,24 @@ defineExpose({ fetchData })
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
-  background: var(--el-fill-color-lighter);
-  border-bottom: 1px solid var(--el-border-color-lighter);
+  padding: var(--google-space-3) var(--google-space-4);
+  background: var(--google-gray-50);
+  border-bottom: 1px solid var(--google-gray-200);
 }
 
 .rule-item__title {
+  font-family: var(--google-font);
   font-size: 14px;
   font-weight: 600;
   margin: 0;
-  color: var(--el-text-color-primary);
+  color: var(--google-text-primary);
   flex: 1;
 }
 
 .rule-item__meta {
   font-size: 12px;
-  color: var(--el-text-color-secondary);
-  margin-right: 12px;
+  color: var(--google-text-secondary);
+  margin-right: var(--google-space-3);
 }
 
 .rule-item__delete {
@@ -315,47 +317,48 @@ defineExpose({ fetchData })
 }
 
 .rule-item__body {
-  padding: 12px 16px;
+  padding: var(--google-space-3) var(--google-space-4);
 }
 
 .rule-item__row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: var(--google-space-3);
 }
 
 .rule-item__section {
-  margin-bottom: 12px;
+  margin-bottom: var(--google-space-3);
 }
 
 .rule-item__label {
+  font-family: var(--google-font);
   font-size: 12px;
   font-weight: 600;
-  color: var(--el-color-primary);
-  background: var(--el-color-primary-light-9);
+  color: var(--google-blue);
+  background: var(--google-blue-bg);
   display: inline-block;
   padding: 2px 8px;
   border-radius: 4px;
-  margin-bottom: 4px;
+  margin-bottom: var(--google-space-1);
 }
 
 .rule-item__text {
   font-size: 13px;
-  color: var(--el-text-color-regular);
+  color: var(--google-text-primary);
   line-height: 1.6;
   white-space: pre-wrap;
 }
 
 .rule-item__source {
   font-size: 12px;
-  color: var(--el-text-color-secondary);
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--el-border-color-lighter);
+  color: var(--google-text-secondary);
+  margin-top: var(--google-space-2);
+  padding-top: var(--google-space-2);
+  border-top: 1px solid var(--google-gray-200);
 }
 
 .rule-item__source a {
-  color: var(--el-color-primary);
+  color: var(--google-blue);
   text-decoration: none;
 }
 
@@ -366,20 +369,20 @@ defineExpose({ fetchData })
 .table-pagination {
   display: flex;
   justify-content: flex-end;
-  padding-top: 8px;
+  padding-top: var(--google-space-2);
 }
 
 @media (max-width: 768px) {
   .group-header {
     flex-direction: column;
     align-items: flex-start;
-    gap: 8px;
+    gap: var(--google-space-2);
   }
 
   .rule-item__header {
     flex-direction: column;
     align-items: flex-start;
-    gap: 8px;
+    gap: var(--google-space-2);
   }
 
   .rule-item__row {
@@ -390,4 +393,31 @@ defineExpose({ fetchData })
     justify-content: center;
   }
 }
+
+.tag-chip {
+  display: inline-block;
+  padding: 2px 10px;
+  background: var(--google-gray-100);
+  color: var(--google-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: var(--google-radius-full);
+}
+.tag-chip--blue {
+  background: var(--google-blue-bg);
+  color: var(--google-blue);
+}
+.text-btn {
+  border: none;
+  background: transparent;
+  font-family: var(--google-font);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 4px 12px;
+  border-radius: var(--google-radius-full);
+  transition: all var(--google-transition-fast);
+}
+.text-btn--danger { color: var(--google-red); }
+.text-btn--danger:hover { background: #fce8e6; }
 </style>
