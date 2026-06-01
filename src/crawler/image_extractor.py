@@ -147,6 +147,10 @@ class OCREngine:
     def extract_text(self, image_bytes: bytes) -> tuple[str, int, list[str]]:
         """从图片中提取文字。
 
+        Args:
+            image_bytes: 图片字节数据
+            progress_callback: 进度回调函数 (step, status, detail, progress)
+
         Returns:
             (合并后的文本, OCR轮数, 各轮原始文本列表)
         """
@@ -173,8 +177,14 @@ class OCREngine:
 
         all_texts = []
         high_conf_count = 0
+        total_pipelines = len(pipelines)
 
         for i, pipe in enumerate(pipelines):
+            # 报告OCR轮次进度
+            if progress_callback:
+                ocr_progress = 20 + int((i / total_pipelines) * 20)  # 20%-40%
+                progress_callback("ocr", "running", f"OCR 第{i+1}/{total_pipelines}轮: {pipe['name']}", ocr_progress)
+
             try:
                 arr = self._preprocess(image_bytes, pipe)
             except Exception as e:
@@ -595,20 +605,23 @@ class ImageExtractor:
 
         try:
             engines = self._ocr.available_engines()
-            _notify("init", "done", f"可用引擎: {', '.join(engines) if engines else '无'}", 10)
+            _notify("init", "done", f"可用引擎: {', '.join(engines) if engines else '无'}", 5)
 
             if not engines:
                 return {"success": False, "error": "未安装 OCR 引擎，请运行: pip install rapidocr-onnxruntime"}
 
-            # OCR 提取
-            _notify("ocr", "running", "正在进行 OCR 文字识别...", 20)
-            ocr_text, passes, all_texts = self._ocr.extract_text(image_bytes)
+            # OCR 提取（带逐轮进度）
+            ocr_text, passes, all_texts = self._ocr.extract_text(image_bytes, progress_callback=_notify)
 
             if not ocr_text.strip():
                 _notify("ocr", "error", "OCR 未能识别到文字", 100)
                 return {"success": False, "error": "OCR 未能识别到文字，请确保图片清晰"}
 
-            _notify("ocr", "done", f"OCR 完成: {passes} 轮识别, 提取 {len(ocr_text)} 字符", 45)
+            _notify("ocr", "done", f"OCR 完成: {passes} 轮识别, 提取 {len(ocr_text)} 字符", 42)
+
+            # 合并 OCR 文本
+            _notify("merge", "running", "正在合并多轮 OCR 结果...", 45)
+            _notify("merge", "done", f"合并完成: {passes} 轮 → 1 份文本", 48)
 
             # 清洗 OCR 文本
             _notify("clean", "running", "正在去除水印和无关内容...", 50)
@@ -619,58 +632,101 @@ class ImageExtractor:
                 logger.warning(f"清洗后文本过短({len(cleaned_text)}字符)，使用原始OCR文本")
                 cleaned_text = ocr_text
 
-            _notify("clean", "done", f"清洗完成: {len(ocr_text)} → {len(cleaned_text)} 字符", 60)
+            _notify("clean", "done", f"清洗完成: {len(ocr_text)} → {len(cleaned_text)} 字符", 58)
 
-            # LLM 结构化（非纯OCR模式）
+            # 纯OCR模式：正则提取
             if mode == "纯OCR":
-                _notify("structure", "skip", "纯OCR模式，跳过AI结构化", 80)
-            elif self.api_key:
-                _notify("structure", "running", f"正在使用 AI 进行数据清洗和结构化（{mode}模式）...", 65)
-                prompt = OCR_STRUCTURING_PROMPT.format(ocr_text=cleaned_text)
-                result = await self._call_llm(prompt)
+                _notify("extract", "running", "正在用正则表达式提取数据...", 65)
+                basic_data = self._extract_basic_from_ocr(cleaned_text)
+                basic_colleges = basic_data.get("colleges", [])
+                basic_majors = sum(len(c.get("majors", [])) for c in basic_colleges)
+                _notify("extract", "done", f"正则提取完成: {basic_majors} 个专业", 90)
+                return {
+                    "success": basic_majors > 0,
+                    "error": "纯OCR未能识别出专业数据" if basic_majors == 0 else "",
+                    "ocr_text": ocr_text,
+                    "cleaned_text": cleaned_text,
+                    "ocr_passes": passes,
+                    "ocr_engines": engines,
+                    "mode": "ocr_only",
+                    "schoolName": basic_data.get("schoolName"),
+                    "schoolWebsite": basic_data.get("schoolWebsite"),
+                    "duration": basic_data.get("duration"),
+                    "tuition": basic_data.get("tuition"),
+                    "colleges": basic_colleges,
+                    "raw_text": cleaned_text,
+                }
 
-                if result.get("success"):
-                    _notify("structure", "done", "AI 结构化完成", 95)
-                    result["ocr_text"] = ocr_text
-                    result["cleaned_text"] = cleaned_text
-                    result["ocr_passes"] = passes
-                    result["ocr_engines"] = engines
-                    result["mode"] = f"ocr+llm({mode})"
-                    # 确保 colleges 存在且非空
-                    colleges = result.get("colleges", [])
-                    total_majors = sum(len(c.get("majors", [])) for c in colleges)
-                    if total_majors == 0:
-                        logger.warning(f"LLM 返回了空数据(colleges={len(colleges)}), 尝试基本提取补充")
-                        basic_data = self._extract_basic_from_ocr(cleaned_text)
-                        if basic_data.get("colleges"):
-                            result["colleges"] = basic_data["colleges"]
-                            result["mode"] = f"ocr+llm+fallback({mode})"
-                            total_majors = sum(len(c.get("majors", [])) for c in result["colleges"])
-                        if total_majors == 0:
-                            # LLM 成功但无数据，标记为失败让前端显示空状态
-                            result["success"] = False
-                            result["error"] = "AI 未能从图片中识别出专业数据，请尝试更换识别方式或手动添加"
-                    return result
-                else:
-                    # LLM 解析失败，尝试用基本提取
-                    llm_error = result.get("error", "未知错误")
-                    _notify("structure", "warn", f"AI 结构化失败: {llm_error}，尝试基本提取", 90)
-                    logger.warning(f"LLM 结构化失败: {llm_error}")
-            else:
+            # AI 模式
+            if not self.api_key:
                 _notify("structure", "skip", "未配置 AI，仅返回 OCR 文本", 90)
+                basic_data = self._extract_basic_from_ocr(cleaned_text)
+                basic_colleges = basic_data.get("colleges", [])
+                basic_majors = sum(len(c.get("majors", [])) for c in basic_colleges)
+                return {
+                    "success": basic_majors > 0,
+                    "error": "未配置API Key" if basic_majors == 0 else "",
+                    "ocr_text": ocr_text,
+                    "cleaned_text": cleaned_text,
+                    "ocr_passes": passes,
+                    "ocr_engines": engines,
+                    "mode": "ocr_only",
+                    "schoolName": basic_data.get("schoolName"),
+                    "schoolWebsite": basic_data.get("schoolWebsite"),
+                    "duration": basic_data.get("duration"),
+                    "tuition": basic_data.get("tuition"),
+                    "colleges": basic_colleges,
+                    "raw_text": cleaned_text,
+                }
 
-            # 无 AI 或 AI 失败时，尝试从 OCR 文本提取基本信息
+            # LLM 结构化
+            _notify("structure", "running", f"正在调用 AI 分析数据（{mode}）...", 62)
+            prompt = OCR_STRUCTURING_PROMPT.format(ocr_text=cleaned_text)
+            result = await self._call_llm(prompt)
+
+            if result.get("success"):
+                _notify("structure", "done", "AI 结构化完成", 88)
+                _notify("finalize", "running", "正在整理识别结果...", 92)
+                result["ocr_text"] = ocr_text
+                result["cleaned_text"] = cleaned_text
+                result["ocr_passes"] = passes
+                result["ocr_engines"] = engines
+                result["mode"] = f"ocr+llm({mode})"
+                # 确保 colleges 存在且非空
+                colleges = result.get("colleges", [])
+                total_majors = sum(len(c.get("majors", [])) for c in colleges)
+                if total_majors == 0:
+                    logger.warning(f"LLM 返回了空数据(colleges={len(colleges)}), 尝试基本提取补充")
+                    basic_data = self._extract_basic_from_ocr(cleaned_text)
+                    if basic_data.get("colleges"):
+                        result["colleges"] = basic_data["colleges"]
+                        result["mode"] = f"ocr+llm+fallback({mode})"
+                        total_majors = sum(len(c.get("majors", [])) for c in result["colleges"])
+                    if total_majors == 0:
+                        result["success"] = False
+                        result["error"] = "AI 未能从图片中识别出专业数据，请尝试更换识别方式或手动添加"
+                _notify("finalize", "done", f"识别完成: {total_majors} 个专业", 100)
+                return result
+            else:
+                # LLM 解析失败，尝试用基本提取
+                llm_error = result.get("error", "未知错误")
+                _notify("structure", "warn", f"AI 失败: {llm_error}，回退到正则提取", 75)
+                logger.warning(f"LLM 结构化失败: {llm_error}")
+
+            # AI 失败回退
+            _notify("extract", "running", "正在用正则表达式提取数据...", 80)
             basic_data = self._extract_basic_from_ocr(cleaned_text)
             basic_colleges = basic_data.get("colleges", [])
             basic_majors = sum(len(c.get("majors", [])) for c in basic_colleges)
+            _notify("extract", "done", f"正则提取完成: {basic_majors} 个专业", 95)
             return {
                 "success": basic_majors > 0,
-                "error": "未能识别出专业数据" if basic_majors == 0 else "",
+                "error": f"AI失败({llm_error})，正则也未能识别" if basic_majors == 0 else "",
                 "ocr_text": ocr_text,
                 "cleaned_text": cleaned_text,
                 "ocr_passes": passes,
                 "ocr_engines": engines,
-                "mode": "ocr_only",
+                "mode": "ocr_fallback",
                 "schoolName": basic_data.get("schoolName"),
                 "schoolWebsite": basic_data.get("schoolWebsite"),
                 "duration": basic_data.get("duration"),

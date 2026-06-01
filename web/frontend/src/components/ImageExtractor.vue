@@ -339,8 +339,11 @@ const steps = ref([])
 const STEP_NAMES = {
   init: '初始化引擎',
   ocr: 'OCR 文字提取',
+  merge: '合并多轮结果',
   clean: '去除水印和噪声',
+  extract: '正则表达式提取',
   structure: 'AI 数据结构化',
+  finalize: '整理识别结果',
 }
 
 const completedSteps = computed(() => {
