@@ -275,7 +275,14 @@ onMounted(() => {
   background: transparent;
   font-size: 14px;
   color: var(--google-text-primary);
-  outline: none;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.google-search__input:focus,
+.google-search__input:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 .google-search__input::placeholder {
