@@ -1,10 +1,10 @@
 <template>
   <el-dialog v-model="visible" title="图片识别 - 院校概览" :width="dialogWidth" :fullscreen="isMobile" @close="onClose">
     <!-- AI未配置提示 -->
-    <el-alert v-if="!aiAvailable" type="warning" :closable="false" style="margin-bottom: 16px">
+    <el-alert v-if="!aiAvailable && recognitionMode !== '纯OCR'" type="warning" :closable="false" style="margin-bottom: 16px">
       <template #title>
         <div style="display:flex;align-items:center;justify-content:space-between">
-          <span>请先配置API Key</span>
+          <span>AI模式需要配置API Key，或切换到"纯OCR"模式</span>
           <el-button type="primary" size="small" @click="$emit('open-settings')">设置</el-button>
         </div>
       </template>
@@ -70,7 +70,7 @@
           type="primary"
           size="large"
           class="extract-btn"
-          :disabled="!selectedFiles.length || !aiAvailable"
+          :disabled="!selectedFiles.length || (recognitionMode !== '纯OCR' && !aiAvailable)"
           @click="startExtract"
         >
           <el-icon><MagicStick /></el-icon>
@@ -426,7 +426,8 @@ function beforeUpload(file) {
 }
 
 async function startExtract() {
-  if (!selectedFiles.value.length || !aiAvailable.value) return
+  if (!selectedFiles.value.length) return
+  if (recognitionMode.value !== '纯OCR' && !aiAvailable.value) return
 
   loading.value = true
   result.value = null
