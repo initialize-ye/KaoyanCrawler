@@ -12,6 +12,29 @@
 
     <!-- 上传区域 -->
     <div class="upload-area" v-if="!result && !loading">
+      <!-- 识别模式选择 -->
+      <div class="mode-select">
+        <span class="mode-label">识别模式：</span>
+        <el-radio-group v-model="recognitionMode" size="default">
+          <el-radio-button value="复试统计">
+            <el-icon><DataAnalysis /></el-icon>
+            复试统计
+          </el-radio-button>
+          <el-radio-button value="录取名单">
+            <el-icon><Document /></el-icon>
+            录取名单
+          </el-radio-button>
+          <el-radio-button value="招生目录">
+            <el-icon><Notebook /></el-icon>
+            招生目录
+          </el-radio-button>
+          <el-radio-button value="自动识别">
+            <el-icon><MagicStick /></el-icon>
+            自动识别
+          </el-radio-button>
+        </el-radio-group>
+      </div>
+
       <!-- 图片预览网格 -->
       <div v-if="selectedFiles.length" class="preview-grid">
         <div v-for="(file, index) in selectedFiles" :key="index" class="preview-item">
@@ -196,32 +219,39 @@
           <table class="editable-table">
             <thead>
               <tr>
-                <th width="40">#</th>
-                <th width="140">学院</th>
-                <th width="140">专业名称</th>
-                <th width="90">专业代码</th>
-                <th width="150">初试科目</th>
-                <th width="80">复试线</th>
-                <th width="70">复试人数</th>
-                <th width="70">招生人数</th>
-                <th width="100">分数区间</th>
-                <th width="60">操作</th>
+                <th width="30">#</th>
+                <th width="100">学院</th>
+                <th width="100">专业名称</th>
+                <th width="70">代码</th>
+                <th width="110">初试科目</th>
+                <th width="60">招生</th>
+                <th width="60">复试线</th>
+                <th width="55">复试人</th>
+                <th width="60">录取人</th>
+                <th width="50">复录比</th>
+                <th width="60">最低分</th>
+                <th width="60">中位数</th>
+                <th width="60">最高分</th>
+                <th width="40">操作</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="(row, index) in editableData" :key="index">
                 <td class="index-cell">{{ index + 1 }}</td>
                 <td>
-                  <el-input v-model="row.collegeName" size="small" placeholder="学院名称" />
+                  <el-input v-model="row.collegeName" size="small" placeholder="学院" />
                 </td>
                 <td>
-                  <el-input v-model="row.majorName" size="small" placeholder="专业名称" />
+                  <el-input v-model="row.majorName" size="small" placeholder="专业" />
                 </td>
                 <td>
                   <el-input v-model="row.majorCode" size="small" placeholder="081200" />
                 </td>
                 <td>
-                  <el-input v-model="row.subjects" size="small" placeholder="政治、英语一、数学一、408统考" />
+                  <el-input v-model="row.subjects" size="small" placeholder="政治、英语一、数学一、408" />
+                </td>
+                <td>
+                  <el-input v-model="row.plannedEnrollment" size="small" placeholder="30" />
                 </td>
                 <td>
                   <el-input v-model="row.retestScoreLine" size="small" placeholder="320" />
@@ -230,10 +260,19 @@
                   <el-input v-model="row.retestCount" size="small" placeholder="45" />
                 </td>
                 <td>
-                  <el-input v-model="row.plannedEnrollment" size="small" placeholder="30" />
+                  <el-input v-model="row.admissionCount" size="small" placeholder="30" />
                 </td>
                 <td>
-                  <el-input v-model="row.admissionScoreRange" size="small" placeholder="320-385" />
+                  <el-input v-model="row.admissionRatio" size="small" placeholder="1.5" />
+                </td>
+                <td>
+                  <el-input v-model="row.admissionMinScore" size="small" placeholder="320" />
+                </td>
+                <td>
+                  <el-input v-model="row.admissionMedianScore" size="small" placeholder="350" />
+                </td>
+                <td>
+                  <el-input v-model="row.admissionMaxScore" size="small" placeholder="390" />
                 </td>
                 <td>
                   <el-button type="danger" text size="small" @click="removeRow(index)">
@@ -271,12 +310,12 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { CircleCheckFilled, CircleCloseFilled, MoreFilled, Close, RefreshRight, MagicStick, UploadFilled, Check, Plus, Delete } from '@element-plus/icons-vue'
+import { CircleCheckFilled, CircleCloseFilled, MoreFilled, Close, RefreshRight, MagicStick, UploadFilled, Check, Plus, Delete, DataAnalysis, Document, Notebook } from '@element-plus/icons-vue'
 import { useDialog } from '../composables/useDialog'
 
 defineEmits(['open-settings', 'data-saved'])
 
-const { isMobile, dialogWidth } = useDialog('1100px')
+const { isMobile, dialogWidth } = useDialog('1200px')
 
 const visible = ref(false)
 const aiAvailable = ref(false)
@@ -288,6 +327,7 @@ const uploadRef = ref(null)
 const editableData = ref([])
 const abortController = ref(null)
 const currentImageIndex = ref(0)
+const recognitionMode = ref('自动识别')
 
 // 进度相关
 const progressPercent = ref(0)
@@ -441,7 +481,7 @@ async function extractSingleImage(file) {
   const formData = new FormData()
   formData.append('file', file)
 
-  const resp = await fetch('/api/extract-image', {
+  const resp = await fetch(`/api/extract-image?mode=${encodeURIComponent(recognitionMode.value)}`, {
     method: 'POST',
     body: formData,
     signal: abortController.value?.signal,
@@ -582,13 +622,16 @@ function buildEditableData(data) {
         majorName: major.majorName || '',
         majorCode: major.majorCode || '',
         subjects: (major.subjects || []).join('、'),
+        plannedEnrollment: major.plannedEnrollment || '',
         retestScoreLine: major.retestScoreLine || '',
         retestCount: major.retestCount || '',
-        plannedEnrollment: major.plannedEnrollment || '',
-        admissionScoreRange: major.admissionScoreRange || '',
-        retestScoreRange: major.retestScoreRange || '',
-        singleSubjectRange: major.singleSubjectRange || '',
-        specialProgram: major.specialProgram || '',
+        admissionCount: major.admissionCount || '',
+        admissionRatio: major.admissionRatio || '',
+        admissionMinScore: major.admissionMinScore || '',
+        admissionMedianScore: major.admissionMedianScore || '',
+        admissionMaxScore: major.admissionMaxScore || '',
+        admissionAvgScore: major.admissionAvgScore || '',
+        transferType: major.transferType || '',
       })
     }
   }
@@ -602,13 +645,16 @@ function addRow() {
     majorName: '',
     majorCode: '',
     subjects: '',
+    plannedEnrollment: '',
     retestScoreLine: '',
     retestCount: '',
-    plannedEnrollment: '',
-    admissionScoreRange: '',
-    retestScoreRange: '',
-    singleSubjectRange: '',
-    specialProgram: '',
+    admissionCount: '',
+    admissionRatio: '',
+    admissionMinScore: '',
+    admissionMedianScore: '',
+    admissionMaxScore: '',
+    admissionAvgScore: '',
+    transferType: '',
   })
 }
 
@@ -766,6 +812,24 @@ defineExpose({ open })
 .status-error {
   background: var(--el-color-danger);
   color: white;
+}
+
+/* 模式选择 */
+.mode-select {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--el-fill-color-lighter);
+  border-radius: 8px;
+}
+
+.mode-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+  flex-shrink: 0;
 }
 
 .image-uploader { width: 100%; }

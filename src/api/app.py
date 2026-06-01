@@ -2085,7 +2085,10 @@ async def ocr_status():
 
 
 @app.post("/api/extract-image")
-async def extract_image(file: UploadFile = File(...)):
+async def extract_image(
+    file: UploadFile = File(...),
+    mode: str = Query("自动识别", description="识别模式: 自动识别/复试统计/录取名单/招生目录"),
+):
     """从考研招生图片中提取结构化数据（SSE 流式返回进度）。"""
     from src.crawler.image_extractor import ImageExtractor
 
@@ -2103,6 +2106,9 @@ async def extract_image(file: UploadFile = File(...)):
             "success": False,
             "error": "未配置AI，请在设置中配置API Key",
         }
+
+    # 设置识别模式
+    extractor.recognition_mode = mode
 
     # 读取图片
     try:
@@ -2204,18 +2210,50 @@ async def save_image_data(data: dict):
                     except ValueError:
                         pass
 
+                # 解析新增字段
+                def to_float(v):
+                    try:
+                        return float(v) if v else None
+                    except (ValueError, TypeError):
+                        return None
+
+                def to_int(v):
+                    try:
+                        return int(v) if v else None
+                    except (ValueError, TypeError):
+                        return None
+
+                retest_score_line = to_float(row.get("retestScoreLine"))
+                retest_count = to_int(row.get("retestCount"))
+                retest_avg_score = to_float(row.get("retestAvgScore"))
+                admission_count = to_int(row.get("admissionCount"))
+                admission_ratio = to_float(row.get("admissionRatio"))
+                admission_min_score = to_float(row.get("admissionMinScore"))
+                admission_median_score = to_float(row.get("admissionMedianScore"))
+                admission_max_score = to_float(row.get("admissionMaxScore"))
+                admission_avg_score = to_float(row.get("admissionAvgScore"))
+                transfer_type = row.get("transferType", "")
+
                 try:
                     await conn.execute(
                         """INSERT OR REPLACE INTO exam_subjects
                         (university, year, major_code, major_name, department,
                          research_direction, enrollment, subject1, subject2, subject3, subject4,
-                         source_url, crawl_time)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                         retest_score_line, retest_count, retest_avg_score,
+                         admission_count, admission_ratio,
+                         admission_min_score, admission_median_score,
+                         admission_max_score, admission_avg_score,
+                         transfer_type, source_url, crawl_time)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                         (
                             school_name, year, major_code, major_name,
                             college_name, '', enrollment,
                             subject1, subject2, subject3, subject4,
-                            '', datetime.now().isoformat(),
+                            retest_score_line, retest_count, retest_avg_score,
+                            admission_count, admission_ratio,
+                            admission_min_score, admission_median_score,
+                            admission_max_score, admission_avg_score,
+                            transfer_type, '', datetime.now().isoformat(),
                         )
                     )
                     saved_count += 1

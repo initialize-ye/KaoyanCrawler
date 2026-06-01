@@ -41,6 +41,16 @@ CREATE TABLE IF NOT EXISTS exam_subjects (
     subject2 TEXT,
     subject3 TEXT,
     subject4 TEXT,
+    retest_score_line REAL,
+    retest_count INTEGER,
+    retest_avg_score REAL,
+    admission_count INTEGER,
+    admission_ratio REAL,
+    admission_min_score REAL,
+    admission_median_score REAL,
+    admission_max_score REAL,
+    admission_avg_score REAL,
+    transfer_type TEXT DEFAULT '',
     source_url TEXT,
     crawl_time TEXT NOT NULL,
     UNIQUE(university, year, major_code, department, research_direction)
@@ -162,8 +172,12 @@ class Database:
                 (university, year, major_code, major_name,
                  department, research_direction, enrollment,
                  subject1, subject2, subject3, subject4,
-                 source_url, crawl_time)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 retest_score_line, retest_count, retest_avg_score,
+                 admission_count, admission_ratio,
+                 admission_min_score, admission_median_score,
+                 admission_max_score, admission_avg_score,
+                 transfer_type, source_url, crawl_time)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(university, year, major_code, department, research_direction)
                 DO UPDATE SET
                     major_name = excluded.major_name,
@@ -172,6 +186,16 @@ class Database:
                     subject2 = COALESCE(excluded.subject2, subject2),
                     subject3 = COALESCE(excluded.subject3, subject3),
                     subject4 = COALESCE(excluded.subject4, subject4),
+                    retest_score_line = COALESCE(excluded.retest_score_line, retest_score_line),
+                    retest_count = COALESCE(excluded.retest_count, retest_count),
+                    retest_avg_score = COALESCE(excluded.retest_avg_score, retest_avg_score),
+                    admission_count = COALESCE(excluded.admission_count, admission_count),
+                    admission_ratio = COALESCE(excluded.admission_ratio, admission_ratio),
+                    admission_min_score = COALESCE(excluded.admission_min_score, admission_min_score),
+                    admission_median_score = COALESCE(excluded.admission_median_score, admission_median_score),
+                    admission_max_score = COALESCE(excluded.admission_max_score, admission_max_score),
+                    admission_avg_score = COALESCE(excluded.admission_avg_score, admission_avg_score),
+                    transfer_type = COALESCE(excluded.transfer_type, transfer_type),
                     source_url = excluded.source_url,
                     crawl_time = excluded.crawl_time""",
                 [
@@ -179,7 +203,11 @@ class Database:
                         s.university, s.year, s.major_code, s.major_name,
                         s.department, s.research_direction, s.enrollment,
                         s.subject1, s.subject2, s.subject3, s.subject4,
-                        s.source_url, s.crawl_time.isoformat(),
+                        s.retest_score_line, s.retest_count, s.retest_avg_score,
+                        s.admission_count, s.admission_ratio,
+                        s.admission_min_score, s.admission_median_score,
+                        s.admission_max_score, s.admission_avg_score,
+                        s.transfer_type, s.source_url, s.crawl_time.isoformat(),
                     )
                     for s in subjects
                 ],

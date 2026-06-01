@@ -67,6 +67,16 @@ class ExamSubject:
     subject2: str | None = None  # 外语
     subject3: str | None = None  # 业务课一
     subject4: str | None = None  # 业务课二
+    retest_score_line: float | None = None  # 复试分数线
+    retest_count: int | None = None  # 复试人数
+    retest_avg_score: float | None = None  # 复试均分
+    admission_count: int | None = None  # 录取人数
+    admission_ratio: float | None = None  # 复录比
+    admission_min_score: float | None = None  # 录取最低分
+    admission_median_score: float | None = None  # 录取中位数
+    admission_max_score: float | None = None  # 录取最高分
+    admission_avg_score: float | None = None  # 录取平均分
+    transfer_type: str = ""  # 调剂类型
     source_url: str = ""
     crawl_time: datetime = field(default_factory=datetime.now)
 
@@ -83,6 +93,16 @@ class ExamSubject:
             "subject2": self.subject2,
             "subject3": self.subject3,
             "subject4": self.subject4,
+            "retest_score_line": self.retest_score_line,
+            "retest_count": self.retest_count,
+            "retest_avg_score": self.retest_avg_score,
+            "admission_count": self.admission_count,
+            "admission_ratio": self.admission_ratio,
+            "admission_min_score": self.admission_min_score,
+            "admission_median_score": self.admission_median_score,
+            "admission_max_score": self.admission_max_score,
+            "admission_avg_score": self.admission_avg_score,
+            "transfer_type": self.transfer_type,
             "source_url": self.source_url,
             "crawl_time": self.crawl_time.isoformat(),
         }
