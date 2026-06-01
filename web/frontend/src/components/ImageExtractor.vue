@@ -313,7 +313,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { CircleCheckFilled, CircleCloseFilled, MoreFilled, Close, RefreshRight, MagicStick, UploadFilled, Check, Plus, Delete, DataAnalysis, Document, Notebook } from '@element-plus/icons-vue'
 import { useDialog } from '../composables/useDialog'
 
-defineEmits(['open-settings', 'data-saved'])
+const emit = defineEmits(['open-settings', 'data-saved'])
 
 const { isMobile, dialogWidth } = useDialog('1200px')
 
