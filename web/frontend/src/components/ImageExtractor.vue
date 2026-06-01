@@ -660,6 +660,10 @@ async function saveToDatabase() {
     const data = await resp.json()
     if (data.success) {
       ElMessage.success(data.message || '保存成功')
+      // 保存成功后关闭窗口
+      visible.value = false
+      resetUpload()
+      emit('data-saved')
     } else {
       ElMessage.error(data.error || '保存失败')
     }
