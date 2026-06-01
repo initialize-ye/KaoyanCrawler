@@ -523,8 +523,18 @@ class AIExtractor:
             if resp.status_code >= 400:
                 logger.error(f"Claude API错误 {resp.status_code}: {resp.text[:500]}")
             resp.raise_for_status()
-            data = resp.json()
-            text = data["content"][0]["text"]
+            try:
+                data = resp.json()
+            except Exception as e:
+                return {"found": False, "error": f"Claude API返回非JSON响应: {e}"}
+            # 检查API级别错误
+            if "error" in data:
+                return {"found": False, "error": f"Claude API错误: {data['error']}"}
+            if "content" not in data or not data["content"]:
+                return {"found": False, "error": f"Claude API响应缺少content字段: {list(data.keys())}"}
+            text = data["content"][0].get("text", "")
+            if not text:
+                return {"found": False, "error": "Claude API返回空文本"}
             return self._parse_json_response(text)
 
     async def _call_openai_compatible(self, prompt: str, max_tokens: int = 4096) -> dict[str, Any]:
@@ -546,8 +556,17 @@ class AIExtractor:
             if resp.status_code >= 400:
                 logger.error(f"LLM API错误 {resp.status_code}: {resp.text[:500]}")
             resp.raise_for_status()
-            data = resp.json()
-            text = data["choices"][0]["message"]["content"]
+            try:
+                data = resp.json()
+            except Exception as e:
+                return {"found": False, "error": f"LLM API返回非JSON响应: {e}"}
+            if "error" in data:
+                return {"found": False, "error": f"LLM API错误: {data['error']}"}
+            if "choices" not in data or not data["choices"]:
+                return {"found": False, "error": f"LLM API响应缺少choices字段: {list(data.keys())}"}
+            text = data["choices"][0].get("message", {}).get("content", "")
+            if not text:
+                return {"found": False, "error": "LLM API返回空文本"}
             return self._parse_json_response(text)
 
     def _parse_json_response(self, text: str) -> dict[str, Any]:

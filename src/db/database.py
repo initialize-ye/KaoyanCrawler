@@ -119,6 +119,9 @@ CREATE TABLE IF NOT EXISTS schools (
 class Database:
     """SQLite数据库管理。"""
 
+    # 允许的表名白名单，防止 SQL 注入
+    _VALID_TABLES = frozenset({"admission_records", "exam_subjects", "retest_rules", "score_lines", "schools"})
+
     def __init__(self, db_path: str | Path):
         self.db_path = Path(db_path)
 
@@ -126,6 +129,8 @@ class Database:
         """初始化数据库，创建表结构。"""
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         async with aiosqlite.connect(self.db_path) as db:
+            # 启用 WAL 模式，提升并发读写性能
+            await db.execute("PRAGMA journal_mode=WAL")
             await db.executescript(DB_SCHEMA)
             # 迁移：为旧表添加新列
             for column, col_def in [
@@ -135,21 +140,36 @@ class Database:
             ]:
                 try:
                     await db.execute(f"ALTER TABLE exam_subjects ADD COLUMN {column} {col_def}")
-                except Exception:
-                    pass  # 列已存在
+                except aiosqlite.OperationalError as e:
+                    if "duplicate column" not in str(e):
+                        logger.warning(f"数据库迁移异常: {e}")
+                except Exception as e:
+                    logger.warning(f"数据库迁移异常: {e}")
             await db.commit()
         logger.info(f"数据库初始化完成: {self.db_path}")
 
     async def insert_admission_records(self, records: list[AdmissionRecord]):
-        """批量插入录取记录，冲突时忽略。"""
+        """批量插入录取记录，冲突时更新。"""
         async with aiosqlite.connect(self.db_path) as db:
             await db.executemany(
-                """INSERT OR IGNORE INTO admission_records
+                """INSERT INTO admission_records
                 (university, year, list_type, exam_id, name, major,
                  initial_score, retest_score, total_score,
                  admission_status, admission_type, study_mode,
                  source_url, crawl_time)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(university, year, list_type, exam_id)
+                DO UPDATE SET
+                    name = excluded.name,
+                    major = excluded.major,
+                    initial_score = COALESCE(excluded.initial_score, initial_score),
+                    retest_score = COALESCE(excluded.retest_score, retest_score),
+                    total_score = COALESCE(excluded.total_score, total_score),
+                    admission_status = COALESCE(excluded.admission_status, admission_status),
+                    admission_type = COALESCE(excluded.admission_type, admission_type),
+                    study_mode = COALESCE(excluded.study_mode, study_mode),
+                    source_url = excluded.source_url,
+                    crawl_time = excluded.crawl_time""",
                 [
                     (
                         r.university, r.year, r.list_type.value,
@@ -162,7 +182,7 @@ class Database:
                 ],
             )
             await db.commit()
-        logger.info(f"插入 {len(records)} 条录取记录")
+        logger.info(f"插入/更新 {len(records)} 条录取记录")
 
     async def insert_exam_subjects(self, subjects: list[ExamSubject]):
         """批量插入考试科目，冲突时更新。"""
@@ -326,15 +346,25 @@ class Database:
             }
 
     async def insert_retest_rules(self, rules: list[RetestRule]):
-        """批量插入复试细则，冲突时忽略。"""
+        """批量插入复试细则，冲突时更新。"""
         async with aiosqlite.connect(self.db_path) as db:
             await db.executemany(
-                """INSERT OR IGNORE INTO retest_rules
+                """INSERT INTO retest_rules
                 (university, year, title, department, major,
                  content_summary, retest_format, score_composition,
                  retest_content, other_requirements,
                  source_url, crawl_time)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(university, year, title, department)
+                DO UPDATE SET
+                    major = excluded.major,
+                    content_summary = excluded.content_summary,
+                    retest_format = excluded.retest_format,
+                    score_composition = excluded.score_composition,
+                    retest_content = excluded.retest_content,
+                    other_requirements = excluded.other_requirements,
+                    source_url = excluded.source_url,
+                    crawl_time = excluded.crawl_time""",
                 [
                     (
                         r.university, r.year, r.title, r.department, r.major,
@@ -346,7 +376,7 @@ class Database:
                 ],
             )
             await db.commit()
-        logger.info(f"插入 {len(rules)} 条复试细则")
+        logger.info(f"插入/更新 {len(rules)} 条复试细则")
 
     async def query_retest_rules(
         self,
@@ -392,14 +422,22 @@ class Database:
                 return [dict(row) for row in rows], total
 
     async def insert_score_lines(self, lines: list[ScoreLine]):
-        """批量插入分数线，冲突时忽略。"""
+        """批量插入分数线，冲突时更新。"""
         async with aiosqlite.connect(self.db_path) as db:
             await db.executemany(
-                """INSERT OR IGNORE INTO score_lines
+                """INSERT INTO score_lines
                 (university, year, category, discipline, discipline_code,
                  total_score, score1, score2,
                  source_url, crawl_time)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(university, year, category, discipline)
+                DO UPDATE SET
+                    discipline_code = excluded.discipline_code,
+                    total_score = COALESCE(excluded.total_score, total_score),
+                    score1 = COALESCE(excluded.score1, score1),
+                    score2 = COALESCE(excluded.score2, score2),
+                    source_url = excluded.source_url,
+                    crawl_time = excluded.crawl_time""",
                 [
                     (
                         sl.university, sl.year, sl.category, sl.discipline, sl.discipline_code,
@@ -410,7 +448,7 @@ class Database:
                 ],
             )
             await db.commit()
-        logger.info(f"插入 {len(lines)} 条分数线")
+        logger.info(f"插入/更新 {len(lines)} 条分数线")
 
     async def query_score_lines(
         self,
@@ -510,6 +548,8 @@ class Database:
             # 各表数据计数
             counts = {}
             for table in ["admission_records", "exam_subjects", "retest_rules", "score_lines"]:
+                if table not in self._VALID_TABLES:
+                    continue
                 async with db.execute(f"SELECT COUNT(*) FROM {table} WHERE university = ?", (university,)) as cursor:
                     counts[table] = (await cursor.fetchone())[0]
 
@@ -533,7 +573,7 @@ class Database:
                 updates = []
                 params = []
                 for key in ["website", "duration", "tuition", "scholarship", "notes"]:
-                    if key in kwargs and kwargs[key]:
+                    if key in kwargs:
                         updates.append(f"{key} = ?")
                         params.append(kwargs[key])
                 if updates:
@@ -569,6 +609,8 @@ class Database:
         total = 0
         async with aiosqlite.connect(self.db_path) as conn:
             for table in ["admission_records", "exam_subjects", "retest_rules", "score_lines"]:
+                if table not in self._VALID_TABLES:
+                    continue
                 cursor = await conn.execute(f"DELETE FROM {table} WHERE university = ?", (university,))
                 total += cursor.rowcount
             await conn.execute("DELETE FROM schools WHERE name = ?", (university,))

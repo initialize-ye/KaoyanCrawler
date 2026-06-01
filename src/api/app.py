@@ -2138,12 +2138,10 @@ async def extract_image(
         }
 
     # 设置识别模式
-    extractor.recognition_mode = mode
-
-    # 验证模式
     valid_modes = {"AI辅助", "纯OCR", "AI优先"}
     if mode not in valid_modes:
         mode = "AI辅助"
+    extractor.recognition_mode = mode
 
     # 读取图片
     try:
@@ -2180,8 +2178,13 @@ async def extract_image(
                 yield f"event: progress\ndata: {json.dumps(event, ensure_ascii=False)}\n\n"
             await asyncio.sleep(0.1)
 
-        # 获取最终结果
-        result = task.result()
+        # 获取最终结果（捕获异常避免SSE流中断）
+        try:
+            result = task.result()
+        except Exception as e:
+            logger.error(f"图片识别任务异常: {e}")
+            result = {"success": False, "error": f"识别过程出错: {str(e)}"}
+
         colleges = result.get("colleges", [])
         majors_count = sum(len(c.get("majors", [])) for c in colleges)
         logger.info(

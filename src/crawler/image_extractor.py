@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -319,16 +318,32 @@ class OCREngine:
             return "", 0.0
 
     def _merge_texts(self, texts: list[str]) -> str:
-        """投票合并多轮 OCR 文本。"""
+        """投票合并多轮 OCR 文本：按行对齐，每行取出现次数最多的版本。"""
         if len(texts) == 1:
             return texts[0]
 
         # 按行拆分
-        all_lines = [t.split() for t in texts]
+        split_texts = [t.split('\n') for t in texts]
+        max_lines = max(len(lines) for lines in split_texts)
 
-        # 找最长的版本作为基准
-        best_idx = max(range(len(texts)), key=lambda i: len(texts[i]))
-        return texts[best_idx]
+        merged_lines = []
+        for i in range(max_lines):
+            candidates = []
+            for lines in split_texts:
+                if i < len(lines) and lines[i].strip():
+                    candidates.append(lines[i].strip())
+
+            if not candidates:
+                merged_lines.append('')
+                continue
+
+            # 按出现次数投票，相同次数取最长的
+            from collections import Counter
+            counts = Counter(candidates)
+            best = max(counts.keys(), key=lambda c: (counts[c], len(c)))
+            merged_lines.append(best)
+
+        return '\n'.join(merged_lines)
 
 
 class ImageExtractor:
@@ -542,13 +557,13 @@ class ImageExtractor:
         for pattern in ad_sentences:
             cleaned = re.sub(pattern, '', cleaned)
 
-        # 3. 去除残留的短碎片
+        # 3. 去除残留的短碎片（仅作为独立词出现时，避免破坏合法数据）
         fragments = [
             r'公众号',
-            r'关注',
-            r'统计',
+            r'关注灰灰',
+            r'灰灰考研',
             r'灰灰',
-            r'皮皮',
+            r'皮皮灰',
             r'东东',
         ]
         for frag in fragments:
@@ -795,8 +810,17 @@ class ImageExtractor:
             if resp.status_code >= 400:
                 logger.error(f"Claude API错误 {resp.status_code}: {resp.text[:500]}")
             resp.raise_for_status()
-            data = resp.json()
-            text = data["content"][0]["text"]
+            try:
+                data = resp.json()
+            except Exception as e:
+                return {"success": False, "error": f"Claude API返回非JSON响应: {e}"}
+            if "error" in data:
+                return {"success": False, "error": f"Claude API错误: {data['error']}"}
+            if "content" not in data or not data["content"]:
+                return {"success": False, "error": f"Claude API响应缺少content字段: {list(data.keys())}"}
+            text = data["content"][0].get("text", "")
+            if not text:
+                return {"success": False, "error": "Claude API返回空文本"}
             logger.info(f"LLM 响应长度: {len(text)} 字符")
             logger.info(f"LLM 响应前1000字符: {text[:1000]}")
             result = self._parse_json_response(text)
@@ -827,8 +851,17 @@ class ImageExtractor:
             if resp.status_code >= 400:
                 logger.error(f"LLM API错误 {resp.status_code}: {resp.text[:500]}")
             resp.raise_for_status()
-            data = resp.json()
-            text = data["choices"][0]["message"]["content"]
+            try:
+                data = resp.json()
+            except Exception as e:
+                return {"success": False, "error": f"LLM API返回非JSON响应: {e}"}
+            if "error" in data:
+                return {"success": False, "error": f"LLM API错误: {data['error']}"}
+            if "choices" not in data or not data["choices"]:
+                return {"success": False, "error": f"LLM API响应缺少choices字段: {list(data.keys())}"}
+            text = data["choices"][0].get("message", {}).get("content", "")
+            if not text:
+                return {"success": False, "error": "LLM API返回空文本"}
             logger.info(f"LLM 响应长度: {len(text)} 字符")
             logger.info(f"LLM 响应前2000字符: {text[:2000]}")
             result = self._parse_json_response(text)
