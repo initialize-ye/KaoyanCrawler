@@ -40,7 +40,7 @@
 
     <!-- 录取信息 -->
     <div v-if="subjects.length" class="section-card">
-      <h3 class="section-title">录取信息</h3>
+      <h3 class="section-title">录取信息 <el-tag size="small" type="info">{{ subjects.length }} 条</el-tag></h3>
       <div class="table-scroll">
         <table class="data-table">
           <thead>
@@ -49,7 +49,13 @@
               <th>专业代码</th>
               <th>专业名称</th>
               <th>招生人数</th>
-              <th>分数线</th>
+              <th>复试线</th>
+              <th>复试人数</th>
+              <th>录取人数</th>
+              <th>复录比</th>
+              <th>最低分</th>
+              <th>平均分</th>
+              <th>最高分</th>
               <th>初试科目</th>
               <th>操作</th>
             </tr>
@@ -60,7 +66,13 @@
               <td class="code-cell">{{ row.major_code || '-' }}</td>
               <td>{{ row.major_name || '-' }}</td>
               <td class="num-cell">{{ row.enrollment || '-' }}</td>
-              <td class="num-cell">{{ row.score_line || '-' }}</td>
+              <td class="num-cell score-highlight">{{ row.retest_score_line || '-' }}</td>
+              <td class="num-cell">{{ row.retest_count || '-' }}</td>
+              <td class="num-cell">{{ row.admission_count || '-' }}</td>
+              <td class="num-cell">{{ row.admission_ratio || '-' }}</td>
+              <td class="num-cell">{{ row.admission_min_score || '-' }}</td>
+              <td class="num-cell">{{ row.admission_avg_score || '-' }}</td>
+              <td class="num-cell">{{ row.admission_max_score || '-' }}</td>
               <td class="subjects-cell">
                 <span v-if="row.subject1 || row.subject2 || row.subject3 || row.subject4">
                   {{ [row.subject1, row.subject2, row.subject3, row.subject4].filter(Boolean).join('、') }}
@@ -219,6 +231,7 @@ const fetchData = async () => {
   try {
     const schoolResp = await axios.get(`/api/schools/${encodeURIComponent(props.schoolName)}`)
     schoolInfo.value = schoolResp.data
+    console.log('[SchoolDetail] schoolInfo:', schoolResp.data)
 
     const [subjResp, admResp, rulesResp, slResp] = await Promise.all([
       axios.get('/api/subjects', { params: { university: props.schoolName, page_size: 200 } }),
@@ -231,9 +244,11 @@ const fetchData = async () => {
     admissions.value = admResp.data.data || []
     rules.value = rulesResp.data.data || []
     scoreLines.value = slResp.data.data || []
+    console.log('[SchoolDetail] subjects:', subjects.value.length, 'admissions:', admissions.value.length)
   } catch (e) {
     const errDetail = e.response?.data?.detail
     const errMsg = typeof errDetail === 'string' ? errDetail : e.message || '未知错误'
+    console.error('[SchoolDetail] 获取数据失败:', errMsg)
     ElMessage.error('获取学校数据失败: ' + errMsg)
   }
 }
@@ -451,6 +466,11 @@ onMounted(fetchData)
 
 .muted {
   color: var(--el-text-color-placeholder);
+}
+
+.score-highlight {
+  color: var(--el-color-danger);
+  font-weight: 600;
 }
 
 /* 复试细则卡片 */
