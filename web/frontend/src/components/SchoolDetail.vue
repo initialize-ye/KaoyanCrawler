@@ -1,48 +1,58 @@
 <template>
   <div class="school-detail">
     <!-- 返回按钮和学校标题 -->
-    <div class="school-detail__header">
-      <el-button @click="$emit('back')" text>
-        <el-icon><ArrowLeft /></el-icon>
-        返回列表
-      </el-button>
-      <h2 class="school-detail__title">{{ schoolName }}</h2>
-      <el-button type="danger" plain size="small" @click="$emit('delete', schoolName)">
-        <el-icon><Delete /></el-icon>
-        删除学校
-      </el-button>
+    <div class="detail-header">
+      <button class="back-btn" @click="$emit('back')">
+        <span class="material-icons">arrow_back</span>
+        <span>返回列表</span>
+      </button>
+      <h2 class="detail-title">{{ schoolName }}</h2>
+      <button class="icon-btn icon-btn--danger" @click="$emit('delete', schoolName)" data-tooltip="删除学校">
+        <span class="material-icons-outlined">delete_outline</span>
+      </button>
     </div>
 
     <!-- 学校信息卡片 -->
-    <div v-if="schoolInfo" class="school-header">
-      <div class="school-header__main">
-        <h2 class="school-name">{{ schoolInfo.name }}</h2>
-        <a v-if="schoolInfo.website" :href="schoolInfo.website" target="_blank" class="school-website">
-          <el-icon><Link /></el-icon>
-          研究生院官网
-        </a>
+    <div v-if="schoolInfo" class="info-card">
+      <div class="info-card__main">
+        <div class="info-card__icon">
+          <span class="material-icons">school</span>
+        </div>
+        <div class="info-card__text">
+          <h2 class="info-card__name">{{ schoolInfo.name }}</h2>
+          <a v-if="schoolInfo.website" :href="schoolInfo.website" target="_blank" class="info-card__link">
+            <span class="material-icons" style="font-size: 16px;">open_in_new</span>
+            研究生院官网
+          </a>
+        </div>
       </div>
-      <div class="school-meta">
-        <div v-if="schoolInfo.duration" class="meta-item">
-          <span class="meta-label">学制</span>
-          <span class="meta-value">{{ schoolInfo.duration }}</span>
+      <div class="info-card__meta" v-if="schoolInfo.duration || schoolInfo.tuition || schoolInfo.scholarship">
+        <div class="meta-chip" v-if="schoolInfo.duration">
+          <span class="material-icons-outlined" style="font-size: 16px;">schedule</span>
+          {{ schoolInfo.duration }}
         </div>
-        <div v-if="schoolInfo.tuition" class="meta-item">
-          <span class="meta-label">学费</span>
-          <span class="meta-value">{{ schoolInfo.tuition }}</span>
+        <div class="meta-chip" v-if="schoolInfo.tuition">
+          <span class="material-icons-outlined" style="font-size: 16px;">payments</span>
+          {{ schoolInfo.tuition }}
         </div>
-        <div v-if="schoolInfo.scholarship" class="meta-item">
-          <span class="meta-label">奖学金</span>
-          <span class="meta-value">{{ schoolInfo.scholarship }}</span>
+        <div class="meta-chip" v-if="schoolInfo.scholarship">
+          <span class="material-icons-outlined" style="font-size: 16px;">emoji_events</span>
+          {{ schoolInfo.scholarship }}
         </div>
       </div>
     </div>
 
     <!-- 录取信息 -->
-    <div v-if="subjects.length" class="section-card">
-      <h3 class="section-title">录取信息 <el-tag size="small" type="info">{{ subjects.length }} 条</el-tag></h3>
-      <div class="table-scroll">
-        <table class="data-table">
+    <div v-if="subjects.length" class="data-section">
+      <div class="section-header">
+        <div class="section-header__left">
+          <span class="material-icons-outlined section-header__icon">analytics</span>
+          <h3 class="section-header__title">录取信息</h3>
+          <span class="count-badge">{{ subjects.length }}</span>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="google-table">
           <thead>
             <tr>
               <th>学院</th>
@@ -63,10 +73,10 @@
           <tbody>
             <tr v-for="row in subjects" :key="row.id">
               <td>{{ row.department || '-' }}</td>
-              <td class="code-cell">{{ row.major_code || '-' }}</td>
-              <td>{{ row.major_name || '-' }}</td>
+              <td class="mono-cell">{{ row.major_code || '-' }}</td>
+              <td class="name-cell">{{ row.major_name || '-' }}</td>
               <td class="num-cell">{{ row.enrollment || '-' }}</td>
-              <td class="num-cell score-highlight">{{ row.retest_score_line || '-' }}</td>
+              <td class="num-cell highlight-red">{{ row.retest_score_line || '-' }}</td>
               <td class="num-cell">{{ row.retest_count || '-' }}</td>
               <td class="num-cell">{{ row.admission_count || '-' }}</td>
               <td class="num-cell">{{ row.admission_ratio || '-' }}</td>
@@ -80,7 +90,9 @@
                 <span v-else class="muted">-</span>
               </td>
               <td>
-                <el-button type="danger" text size="small" @click="deleteSubject(row.id)">删除</el-button>
+                <button class="icon-btn icon-btn--danger icon-btn--sm" @click="deleteSubject(row.id)">
+                  <span class="material-icons" style="font-size: 18px;">delete_outline</span>
+                </button>
               </td>
             </tr>
           </tbody>
@@ -89,10 +101,16 @@
     </div>
 
     <!-- 录取数据 -->
-    <div v-if="admissions.length" class="section-card">
-      <h3 class="section-title">录取数据</h3>
-      <div class="table-scroll">
-        <table class="data-table">
+    <div v-if="admissions.length" class="data-section">
+      <div class="section-header">
+        <div class="section-header__left">
+          <span class="material-icons-outlined section-header__icon">people</span>
+          <h3 class="section-header__title">录取数据</h3>
+          <span class="count-badge">{{ admissions.length }}</span>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="google-table">
           <thead>
             <tr>
               <th>类型</th>
@@ -109,19 +127,21 @@
           <tbody>
             <tr v-for="row in admissions" :key="row.id">
               <td>
-                <el-tag :type="row.list_type === '录取名单' ? 'success' : 'warning'" size="small">
+                <span class="status-tag" :class="row.list_type === '录取名单' ? 'status-tag--success' : 'status-tag--warning'">
                   {{ row.list_type }}
-                </el-tag>
+                </span>
               </td>
               <td>{{ row.major || '-' }}</td>
               <td>{{ row.name || '-' }}</td>
-              <td class="code-cell">{{ row.exam_id || '-' }}</td>
+              <td class="mono-cell">{{ row.exam_id || '-' }}</td>
               <td class="num-cell">{{ row.initial_score || '-' }}</td>
               <td class="num-cell">{{ row.retest_score || '-' }}</td>
               <td class="num-cell">{{ row.total_score || '-' }}</td>
               <td>{{ row.admission_status || '-' }}</td>
               <td>
-                <el-button type="danger" text size="small" @click="deleteAdmission(row.id)">删除</el-button>
+                <button class="icon-btn icon-btn--danger icon-btn--sm" @click="deleteAdmission(row.id)">
+                  <span class="material-icons" style="font-size: 18px;">delete_outline</span>
+                </button>
               </td>
             </tr>
           </tbody>
@@ -130,47 +150,61 @@
     </div>
 
     <!-- 复试细则 -->
-    <div v-if="rules.length" class="section-card">
-      <h3 class="section-title">复试细则</h3>
-      <div class="rules-list">
+    <div v-if="rules.length" class="data-section">
+      <div class="section-header">
+        <div class="section-header__left">
+          <span class="material-icons-outlined section-header__icon">description</span>
+          <h3 class="section-header__title">复试细则</h3>
+          <span class="count-badge">{{ rules.length }}</span>
+        </div>
+      </div>
+      <div class="rules-grid">
         <div v-for="rule in rules" :key="rule.id" class="rule-card">
           <div class="rule-card__header">
-            <h4>{{ rule.title }}</h4>
-            <el-button type="danger" text size="small" @click="deleteRule(rule.id)">删除</el-button>
+            <h4 class="rule-card__title">{{ rule.title }}</h4>
+            <button class="icon-btn icon-btn--danger icon-btn--sm" @click="deleteRule(rule.id)">
+              <span class="material-icons" style="font-size: 18px;">delete_outline</span>
+            </button>
           </div>
           <div v-if="rule.department || rule.major" class="rule-card__meta">
             <span v-if="rule.department">{{ rule.department }}</span>
             <span v-if="rule.major"> · {{ rule.major }}</span>
           </div>
-          <div v-if="rule.content_summary" class="rule-card__section">
-            <div class="rule-card__label">内容摘要</div>
-            <div class="rule-card__text">{{ rule.content_summary }}</div>
+          <div v-if="rule.content_summary" class="rule-card__field">
+            <span class="rule-card__label">内容摘要</span>
+            <p class="rule-card__value">{{ rule.content_summary }}</p>
           </div>
-          <div v-if="rule.retest_format" class="rule-card__section">
-            <div class="rule-card__label">复试形式</div>
-            <div class="rule-card__text">{{ rule.retest_format }}</div>
+          <div v-if="rule.retest_format" class="rule-card__field">
+            <span class="rule-card__label">复试形式</span>
+            <p class="rule-card__value">{{ rule.retest_format }}</p>
           </div>
-          <div v-if="rule.score_composition" class="rule-card__section">
-            <div class="rule-card__label">成绩构成</div>
-            <div class="rule-card__text">{{ rule.score_composition }}</div>
+          <div v-if="rule.score_composition" class="rule-card__field">
+            <span class="rule-card__label">成绩构成</span>
+            <p class="rule-card__value">{{ rule.score_composition }}</p>
           </div>
-          <div v-if="rule.retest_content" class="rule-card__section">
-            <div class="rule-card__label">复试内容</div>
-            <div class="rule-card__text">{{ rule.retest_content }}</div>
+          <div v-if="rule.retest_content" class="rule-card__field">
+            <span class="rule-card__label">复试内容</span>
+            <p class="rule-card__value">{{ rule.retest_content }}</p>
           </div>
-          <div v-if="rule.other_requirements" class="rule-card__section">
-            <div class="rule-card__label">其他要求</div>
-            <div class="rule-card__text">{{ rule.other_requirements }}</div>
+          <div v-if="rule.other_requirements" class="rule-card__field">
+            <span class="rule-card__label">其他要求</span>
+            <p class="rule-card__value">{{ rule.other_requirements }}</p>
           </div>
         </div>
       </div>
     </div>
 
     <!-- 分数线 -->
-    <div v-if="scoreLines.length" class="section-card">
-      <h3 class="section-title">分数线</h3>
-      <div class="table-scroll">
-        <table class="data-table">
+    <div v-if="scoreLines.length" class="data-section">
+      <div class="section-header">
+        <div class="section-header__left">
+          <span class="material-icons-outlined section-header__icon">trending_up</span>
+          <h3 class="section-header__title">分数线</h3>
+          <span class="count-badge">{{ scoreLines.length }}</span>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="google-table">
           <thead>
             <tr>
               <th>学位类别</th>
@@ -186,12 +220,14 @@
             <tr v-for="row in scoreLines" :key="row.id">
               <td>{{ row.category || '-' }}</td>
               <td>{{ row.discipline || '-' }}</td>
-              <td class="code-cell">{{ row.discipline_code || '-' }}</td>
-              <td class="num-cell">{{ row.total_score || '-' }}</td>
+              <td class="mono-cell">{{ row.discipline_code || '-' }}</td>
+              <td class="num-cell highlight-red">{{ row.total_score || '-' }}</td>
               <td class="num-cell">{{ row.score1 || '-' }}</td>
               <td class="num-cell">{{ row.score2 || '-' }}</td>
               <td>
-                <el-button type="danger" text size="small" @click="deleteScoreLine(row.id)">删除</el-button>
+                <button class="icon-btn icon-btn--danger icon-btn--sm" @click="deleteScoreLine(row.id)">
+                  <span class="material-icons" style="font-size: 18px;">delete_outline</span>
+                </button>
               </td>
             </tr>
           </tbody>
@@ -200,10 +236,11 @@
     </div>
 
     <!-- 无数据提示 -->
-    <el-empty
-      v-if="!subjects.length && !admissions.length && !rules.length && !scoreLines.length"
-      description="暂无数据"
-    />
+    <div v-if="!subjects.length && !admissions.length && !rules.length && !scoreLines.length" class="empty-state">
+      <span class="material-icons-outlined empty-state__icon">inbox</span>
+      <p class="empty-state__text">暂无数据</p>
+      <p class="empty-state__hint">点击右上角"采集"或"图片识别"添加数据</p>
+    </div>
   </div>
 </template>
 
@@ -211,7 +248,6 @@
 import { ref, watch, onMounted } from 'vue'
 import axios from 'axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, Delete, Link } from '@element-plus/icons-vue'
 
 const props = defineProps({
   schoolName: { type: String, required: true },
@@ -231,7 +267,6 @@ const fetchData = async () => {
   try {
     const schoolResp = await axios.get(`/api/schools/${encodeURIComponent(props.schoolName)}`)
     schoolInfo.value = schoolResp.data
-    console.log('[SchoolDetail] schoolInfo:', schoolResp.data)
 
     const [subjResp, admResp, rulesResp, slResp] = await Promise.all([
       axios.get('/api/subjects', { params: { university: props.schoolName, page_size: 200 } }),
@@ -244,11 +279,9 @@ const fetchData = async () => {
     admissions.value = admResp.data.data || []
     rules.value = rulesResp.data.data || []
     scoreLines.value = slResp.data.data || []
-    console.log('[SchoolDetail] subjects:', subjects.value.length, 'admissions:', admissions.value.length)
   } catch (e) {
     const errDetail = e.response?.data?.detail
     const errMsg = typeof errDetail === 'string' ? errDetail : e.message || '未知错误'
-    console.error('[SchoolDetail] 获取数据失败:', errMsg)
     ElMessage.error('获取学校数据失败: ' + errMsg)
   }
 }
@@ -306,146 +339,262 @@ onMounted(fetchData)
 </script>
 
 <style scoped>
-.school-detail {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.school-detail__header {
+/* ── Header ── */
+.detail-header {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: var(--google-space-4);
+  margin-bottom: var(--google-space-6);
 }
 
-.school-detail__title {
+.back-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--google-space-1);
+  padding: var(--google-space-2) var(--google-space-3);
+  border: none;
+  background: transparent;
+  color: var(--google-blue);
+  font-family: var(--google-font);
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: var(--google-radius-full);
+  cursor: pointer;
+  transition: all var(--google-transition-fast);
+}
+
+.back-btn:hover {
+  background: var(--google-blue-bg);
+}
+
+.back-btn .material-icons {
   font-size: 20px;
-  font-weight: 600;
+}
+
+.detail-title {
+  flex: 1;
+  font-family: var(--google-font);
+  font-size: 22px;
+  font-weight: 400;
+  color: var(--google-text-primary);
   margin: 0;
+}
+
+/* ── Icon Button ── */
+.icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: transparent;
+  color: var(--google-text-secondary);
+  border-radius: var(--google-radius-full);
+  cursor: pointer;
+  transition: all var(--google-transition-fast);
+}
+
+.icon-btn:hover {
+  background: var(--google-gray-100);
+  color: var(--google-text-primary);
+}
+
+.icon-btn--danger:hover {
+  background: #fce8e6;
+  color: var(--google-red);
+}
+
+.icon-btn--sm {
+  width: 32px;
+  height: 32px;
+}
+
+/* ── Info Card ── */
+.info-card {
+  background: var(--google-surface);
+  border-radius: var(--google-radius-md);
+  box-shadow: var(--google-elevation-1);
+  padding: var(--google-space-6);
+  margin-bottom: var(--google-space-6);
+  animation: google-fade-in 0.3s ease-out;
+}
+
+.info-card__main {
+  display: flex;
+  align-items: center;
+  gap: var(--google-space-4);
+  margin-bottom: var(--google-space-4);
+}
+
+.info-card__icon {
+  width: 48px;
+  height: 48px;
+  background: var(--google-blue-bg);
+  border-radius: var(--google-radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--google-blue);
+  font-size: 28px;
+  flex-shrink: 0;
+}
+
+.info-card__text {
   flex: 1;
 }
 
-/* 学校信息卡片 */
-.school-header {
-  background: linear-gradient(135deg, var(--el-color-primary-light-9) 0%, var(--el-color-primary-light-8) 100%);
-  border-radius: 12px;
-  padding: 20px;
-  border: 1px solid var(--el-color-primary-light-7);
-}
-
-.school-header__main {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.school-name {
+.info-card__name {
+  font-family: var(--google-font);
   font-size: 24px;
-  font-weight: 700;
-  color: var(--el-color-primary);
-  margin: 0;
+  font-weight: 400;
+  color: var(--google-text-primary);
+  margin: 0 0 4px;
 }
 
-.school-website {
+.info-card__link {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: var(--el-color-primary);
+  color: var(--google-blue);
   text-decoration: none;
   font-size: 14px;
-  padding: 6px 12px;
-  background: var(--el-color-white);
-  border-radius: 6px;
-  border: 1px solid var(--el-color-primary-light-5);
-  transition: all 0.2s;
+  font-weight: 500;
+  padding: 4px 12px;
+  border-radius: var(--google-radius-full);
+  transition: all var(--google-transition-fast);
 }
 
-.school-website:hover {
-  background: var(--el-color-primary-light-9);
-  border-color: var(--el-color-primary);
+.info-card__link:hover {
+  background: var(--google-blue-bg);
 }
 
-.school-meta {
+.info-card__meta {
   display: flex;
-  gap: 24px;
+  gap: var(--google-space-3);
   flex-wrap: wrap;
 }
 
-.meta-item {
+.meta-chip {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  background: var(--google-gray-50);
+  border: 1px solid var(--google-gray-200);
+  border-radius: var(--google-radius-full);
+  font-size: 13px;
+  color: var(--google-text-secondary);
 }
 
-.meta-label {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-
-.meta-value {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--el-text-color-primary);
-}
-
-/* 数据区块 */
-.section-card {
-  background: var(--el-bg-color);
-  border-radius: 12px;
-  border: 1px solid var(--el-border-color-lighter);
+/* ── Data Section ── */
+.data-section {
+  background: var(--google-surface);
+  border-radius: var(--google-radius-md);
+  box-shadow: var(--google-elevation-1);
+  margin-bottom: var(--google-space-6);
   overflow: hidden;
+  animation: google-fade-in 0.3s ease-out;
 }
 
-.section-title {
+.section-header {
+  padding: var(--google-space-4) var(--google-space-6);
+  border-bottom: 1px solid var(--google-gray-200);
+}
+
+.section-header__left {
+  display: flex;
+  align-items: center;
+  gap: var(--google-space-3);
+}
+
+.section-header__icon {
+  color: var(--google-blue);
+  font-size: 22px;
+}
+
+.section-header__title {
+  font-family: var(--google-font);
   font-size: 16px;
-  font-weight: 600;
-  padding: 16px 20px;
+  font-weight: 500;
+  color: var(--google-text-primary);
   margin: 0;
-  background: var(--el-fill-color-lighter);
-  border-bottom: 1px solid var(--el-border-color-lighter);
 }
 
-.table-scroll {
+.count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 8px;
+  background: var(--google-blue-bg);
+  color: var(--google-blue);
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: var(--google-radius-full);
+}
+
+/* ── Table ── */
+.table-wrap {
   overflow-x: auto;
-  padding: 16px;
+  -webkit-overflow-scrolling: touch;
 }
 
-/* 表格样式 */
-.data-table {
+.google-table {
   width: 100%;
   border-collapse: collapse;
-}
-
-.data-table th,
-.data-table td {
-  padding: 10px 12px;
-  text-align: left;
-  border-bottom: 1px solid var(--el-border-color-lighter);
+  font-family: var(--google-font-roboto);
   font-size: 13px;
 }
 
-.data-table th {
-  background: var(--el-fill-color-light);
-  font-weight: 600;
-  color: var(--el-text-color-primary);
+.google-table th {
+  background: var(--google-gray-50);
+  color: var(--google-text-secondary);
+  font-weight: 500;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 12px 16px;
+  text-align: left;
   white-space: nowrap;
+  border-bottom: 1px solid var(--google-gray-200);
+  position: sticky;
+  top: 0;
 }
 
-.data-table tbody tr:hover {
-  background: var(--el-color-primary-light-9);
+.google-table td {
+  padding: 12px 16px;
+  color: var(--google-text-primary);
+  border-bottom: 1px solid var(--google-gray-100);
 }
 
-.code-cell {
-  font-family: 'Consolas', 'Monaco', monospace;
-  color: var(--el-text-color-secondary);
+.google-table tbody tr:hover {
+  background: var(--google-gray-50);
+}
+
+.google-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.mono-cell {
+  font-family: 'Roboto Mono', 'Consolas', monospace;
+  color: var(--google-text-secondary);
+  font-size: 12px;
+}
+
+.name-cell {
+  font-weight: 500;
 }
 
 .num-cell {
   text-align: center;
   font-variant-numeric: tabular-nums;
+}
+
+.highlight-red {
+  color: var(--google-red);
+  font-weight: 600;
 }
 
 .subjects-cell {
@@ -455,112 +604,175 @@ onMounted(fetchData)
   white-space: nowrap;
 }
 
-.link {
-  color: var(--el-color-primary);
-  text-decoration: none;
-}
-
-.link:hover {
-  text-decoration: underline;
-}
-
 .muted {
-  color: var(--el-text-color-placeholder);
+  color: var(--google-text-tertiary);
 }
 
-.score-highlight {
-  color: var(--el-color-danger);
-  font-weight: 600;
+/* ── Status Tags ── */
+.status-tag {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: var(--google-radius-full);
+  font-size: 12px;
+  font-weight: 500;
 }
 
-/* 复试细则卡片 */
-.rules-list {
+.status-tag--success {
+  background: var(--google-green-bg);
+  color: var(--google-green-dark);
+}
+
+.status-tag--warning {
+  background: #fef7e0;
+  color: var(--google-yellow-dark);
+}
+
+/* ── Rules Grid ── */
+.rules-grid {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 16px;
+  gap: var(--google-space-4);
+  padding: var(--google-space-6);
 }
 
 .rule-card {
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 8px;
-  padding: 16px;
+  border: 1px solid var(--google-gray-200);
+  border-radius: var(--google-radius-sm);
+  padding: var(--google-space-4) var(--google-space-5);
+  transition: border-color var(--google-transition-fast);
+}
+
+.rule-card:hover {
+  border-color: var(--google-gray-300);
 }
 
 .rule-card__header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 8px;
+  gap: var(--google-space-3);
+  margin-bottom: var(--google-space-2);
 }
 
-.rule-card__header h4 {
+.rule-card__title {
   margin: 0;
+  font-family: var(--google-font);
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 500;
+  color: var(--google-text-primary);
 }
 
 .rule-card__meta {
   font-size: 13px;
-  color: var(--el-text-color-secondary);
-  margin-bottom: 12px;
+  color: var(--google-text-tertiary);
+  margin-bottom: var(--google-space-3);
 }
 
-.rule-card__section {
-  margin-bottom: 12px;
+.rule-card__field {
+  margin-bottom: var(--google-space-3);
 }
 
-.rule-card__section:last-child {
+.rule-card__field:last-child {
   margin-bottom: 0;
 }
 
 .rule-card__label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--el-color-primary);
-  background: var(--el-color-primary-light-9);
   display: inline-block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--google-blue);
+  background: var(--google-blue-bg);
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: var(--google-radius-sm);
   margin-bottom: 4px;
 }
 
-.rule-card__text {
+.rule-card__value {
+  margin: 0;
   font-size: 13px;
-  color: var(--el-text-color-regular);
+  color: var(--google-text-primary);
   line-height: 1.6;
   white-space: pre-wrap;
 }
 
+/* ── Empty State ── */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 20px;
+  background: var(--google-surface);
+  border-radius: var(--google-radius-md);
+  box-shadow: var(--google-elevation-1);
+  animation: google-fade-in 0.3s ease-out;
+}
+
+.empty-state__icon {
+  font-size: 64px;
+  color: var(--google-gray-300);
+  margin-bottom: var(--google-space-4);
+}
+
+.empty-state__text {
+  font-family: var(--google-font);
+  font-size: 18px;
+  color: var(--google-text-secondary);
+  margin: 0 0 8px;
+}
+
+.empty-state__hint {
+  font-size: 14px;
+  color: var(--google-text-tertiary);
+  margin: 0;
+}
+
+/* ── Animation ── */
+@keyframes google-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Responsive ── */
 @media (max-width: 768px) {
-  .school-header {
-    padding: 16px;
+  .detail-header {
+    gap: var(--google-space-2);
   }
 
-  .school-name {
+  .detail-title {
+    font-size: 18px;
+  }
+
+  .info-card {
+    padding: var(--google-space-4);
+  }
+
+  .info-card__main {
+    gap: var(--google-space-3);
+  }
+
+  .info-card__name {
     font-size: 20px;
   }
 
-  .school-meta {
-    gap: 16px;
+  .section-header {
+    padding: var(--google-space-3) var(--google-space-4);
   }
 
-  .section-title {
-    padding: 12px 16px;
-  }
-
-  .table-scroll {
-    padding: 12px;
-  }
-
-  .data-table th,
-  .data-table td {
-    padding: 8px 10px;
+  .google-table th,
+  .google-table td {
+    padding: 8px 12px;
     font-size: 12px;
   }
 
   .subjects-cell {
     max-width: 150px;
+  }
+
+  .rules-grid {
+    padding: var(--google-space-4);
   }
 }
 </style>
