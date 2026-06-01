@@ -38,9 +38,9 @@
       </div>
     </div>
 
-    <!-- 招生目录 -->
+    <!-- 录取信息 -->
     <div v-if="subjects.length" class="section-card">
-      <h3 class="section-title">招生目录</h3>
+      <h3 class="section-title">录取信息</h3>
       <div class="table-scroll">
         <table class="data-table">
           <thead>
@@ -49,6 +49,7 @@
               <th>专业代码</th>
               <th>专业名称</th>
               <th>招生人数</th>
+              <th>分数线</th>
               <th>初试科目</th>
               <th>操作</th>
             </tr>
@@ -59,6 +60,7 @@
               <td class="code-cell">{{ row.major_code || '-' }}</td>
               <td>{{ row.major_name || '-' }}</td>
               <td class="num-cell">{{ row.enrollment || '-' }}</td>
+              <td class="num-cell">{{ row.score_line || '-' }}</td>
               <td class="subjects-cell">
                 <span v-if="row.subject1 || row.subject2 || row.subject3 || row.subject4">
                   {{ [row.subject1, row.subject2, row.subject3, row.subject4].filter(Boolean).join('、') }}
