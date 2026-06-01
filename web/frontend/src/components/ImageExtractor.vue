@@ -467,8 +467,12 @@ async function startExtract() {
   if (allResults.length > 0) {
     const merged = mergeResults(allResults)
     merged.imageCount = allResults.length
+    console.log('[startExtract] 合并结果 keys:', Object.keys(merged))
+    console.log('[startExtract] colleges 数量:', (merged.colleges || []).length)
+    console.log('[startExtract] success:', merged.success)
     result.value = merged
     buildEditableData(merged)
+    console.log('[startExtract] editableData 行数:', editableData.value.length)
     ElMessage.success(`识别完成，共处理 ${allResults.length} 张图片`)
   } else {
     result.value = { success: false, error: '所有图片识别失败' }
@@ -526,6 +530,9 @@ async function extractSingleImage(file) {
     }
   }
 
+  console.log('[extractSingleImage] finalResult keys:', finalResult ? Object.keys(finalResult) : 'null')
+  console.log('[extractSingleImage] success:', finalResult?.success)
+  console.log('[extractSingleImage] colleges:', (finalResult?.colleges || []).length)
   return finalResult || { success: false, error: '未收到识别结果' }
 }
 

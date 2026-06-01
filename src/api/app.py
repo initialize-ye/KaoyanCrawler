@@ -2182,11 +2182,18 @@ async def extract_image(
 
         # 获取最终结果
         result = task.result()
+        colleges = result.get("colleges", [])
+        majors_count = sum(len(c.get("majors", [])) for c in colleges)
         logger.info(
             f"图片识别完成: success={result.get('success', False)}, "
-            f"precision={result.get('precision_mode', 'unknown')}, "
-            f"passes={result.get('ocr_passes', 0)}"
+            f"mode={result.get('mode', 'unknown')}, "
+            f"passes={result.get('ocr_passes', 0)}, "
+            f"colleges={len(colleges)}, majors={majors_count}, "
+            f"keys={list(result.keys())}"
         )
+        if majors_count > 0:
+            sample = colleges[0].get("majors", [{}])[0]
+            logger.info(f"第一个专业示例: {json.dumps(sample, ensure_ascii=False)[:500]}")
         yield f"event: result\ndata: {json.dumps(result, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(

@@ -623,12 +623,18 @@ class ImageExtractor:
                     result["mode"] = f"ocr+llm({mode})"
                     # 确保 colleges 存在且非空
                     colleges = result.get("colleges", [])
-                    if not colleges:
-                        logger.warning("LLM 返回了空的 colleges，尝试基本提取补充")
+                    total_majors = sum(len(c.get("majors", [])) for c in colleges)
+                    if total_majors == 0:
+                        logger.warning(f"LLM 返回了空数据(colleges={len(colleges)}), 尝试基本提取补充")
                         basic_data = self._extract_basic_from_ocr(cleaned_text)
                         if basic_data.get("colleges"):
                             result["colleges"] = basic_data["colleges"]
                             result["mode"] = f"ocr+llm+fallback({mode})"
+                            total_majors = sum(len(c.get("majors", [])) for c in result["colleges"])
+                        if total_majors == 0:
+                            # LLM 成功但无数据，标记为失败让前端显示空状态
+                            result["success"] = False
+                            result["error"] = "AI 未能从图片中识别出专业数据，请尝试更换识别方式或手动添加"
                     return result
                 else:
                     # LLM 解析失败，尝试用基本提取
@@ -640,8 +646,11 @@ class ImageExtractor:
 
             # 无 AI 或 AI 失败时，尝试从 OCR 文本提取基本信息
             basic_data = self._extract_basic_from_ocr(cleaned_text)
+            basic_colleges = basic_data.get("colleges", [])
+            basic_majors = sum(len(c.get("majors", [])) for c in basic_colleges)
             return {
-                "success": True,
+                "success": basic_majors > 0,
+                "error": "未能识别出专业数据" if basic_majors == 0 else "",
                 "ocr_text": ocr_text,
                 "cleaned_text": cleaned_text,
                 "ocr_passes": passes,
@@ -651,7 +660,7 @@ class ImageExtractor:
                 "schoolWebsite": basic_data.get("schoolWebsite"),
                 "duration": basic_data.get("duration"),
                 "tuition": basic_data.get("tuition"),
-                "colleges": basic_data.get("colleges", []),
+                "colleges": basic_colleges,
                 "raw_text": cleaned_text,
             }
 
