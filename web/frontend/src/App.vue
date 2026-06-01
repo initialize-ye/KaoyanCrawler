@@ -16,7 +16,7 @@
         </div>
 
         <div class="google-header__center">
-          <div class="google-search">
+          <div class="google-search" :class="{ 'google-search--has-value': searchQuery }">
             <span class="material-icons google-search__icon">search</span>
             <input
               v-model="searchQuery"
@@ -25,6 +25,9 @@
               placeholder="搜索学校名称..."
               @keyup.enter="handleSearch"
             />
+            <button v-if="searchQuery" class="google-search__clear" @click="searchQuery = ''">
+              <span class="material-icons">close</span>
+            </button>
           </div>
         </div>
 
@@ -73,14 +76,11 @@
     <footer class="google-footer">
       <div class="google-footer__inner">
         <div class="google-footer__links">
-          <a href="#" class="google-footer__link">关于</a>
-          <a href="#" class="google-footer__link">帮助</a>
-          <a href="#" class="google-footer__link">隐私</a>
-          <a href="#" class="google-footer__link">条款</a>
+          <span class="google-footer__link">考研数据采集系统</span>
         </div>
         <div class="google-footer__copyright">
           <span class="material-icons" style="font-size: 14px;">school</span>
-          <span>KaoyanCrawler © 2025</span>
+          <span>KaoyanCrawler © {{ new Date().getFullYear() }}</span>
         </div>
       </div>
     </footer>
@@ -282,6 +282,30 @@ onMounted(() => {
   color: var(--google-text-tertiary);
 }
 
+.google-search__clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: var(--google-text-tertiary);
+  border-radius: var(--google-radius-full);
+  cursor: pointer;
+  transition: all var(--google-transition-fast);
+  margin-left: var(--google-space-1);
+}
+
+.google-search__clear:hover {
+  background: var(--google-gray-200);
+  color: var(--google-text-primary);
+}
+
+.google-search__clear .material-icons {
+  font-size: 18px;
+}
+
 .google-header__right {
   display: flex;
   align-items: center;
@@ -349,11 +373,39 @@ onMounted(() => {
   animation: google-fade-in 0.3s ease-out;
 }
 
+/* ── Header Button Active State ── */
+.google-header__btn:active {
+  transform: scale(0.96);
+}
+
+.google-header__btn--primary:active {
+  transform: scale(0.97);
+}
+
+/* ── Ripple Effect on Primary Button ── */
+.google-header__btn--primary {
+  position: relative;
+  overflow: hidden;
+}
+
+.google-header__btn--primary::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, rgba(255,255,255,0.3) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity var(--google-transition-fast);
+}
+
+.google-header__btn--primary:active::after {
+  opacity: 1;
+}
+
 /* ── Google Footer ── */
 .google-footer {
   background: var(--google-gray-50);
   border-top: 1px solid var(--google-gray-200);
-  padding: var(--google-space-4) 0;
+  padding: var(--google-space-3) 0;
 }
 
 .google-footer__inner {
@@ -372,13 +424,8 @@ onMounted(() => {
 
 .google-footer__link {
   font-size: 12px;
-  color: var(--google-text-secondary);
+  color: var(--google-text-tertiary);
   text-decoration: none;
-  transition: color var(--google-transition-fast);
-}
-
-.google-footer__link:hover {
-  color: var(--google-blue);
 }
 
 .google-footer__copyright {
@@ -421,6 +468,41 @@ onMounted(() => {
     gap: var(--google-space-3);
     text-align: center;
   }
+}
+
+/* ── Logo Hover ── */
+.google-header__logo {
+  transition: transform var(--google-transition-fast), box-shadow var(--google-transition-fast);
+}
+
+.google-header__logo:hover {
+  transform: scale(1.05);
+  box-shadow: 0 2px 8px rgba(66, 133, 244, 0.3);
+}
+
+/* ── Custom Scrollbar ── */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--google-gray-300);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--google-gray-400);
+}
+
+/* ── Selection Color ── */
+::selection {
+  background: var(--google-blue-bg);
+  color: var(--google-text-primary);
 }
 
 /* ── Element Plus Google Style Overrides ── */
