@@ -151,10 +151,10 @@ const fetchData = async () => {
 
     // 获取各表数据
     const [subjResp, admResp, rulesResp, slResp] = await Promise.all([
-      axios.get('/api/subjects', { params: { university: props.schoolName, page_size: 1000 } }),
-      axios.get('/api/admissions', { params: { university: props.schoolName, page_size: 1000 } }),
-      axios.get('/api/retest-rules', { params: { university: props.schoolName, page_size: 1000 } }),
-      axios.get('/api/score-lines', { params: { university: props.schoolName, page_size: 1000 } }),
+      axios.get('/api/subjects', { params: { university: props.schoolName, page_size: 200 } }),
+      axios.get('/api/admissions', { params: { university: props.schoolName, page_size: 200 } }),
+      axios.get('/api/retest-rules', { params: { university: props.schoolName, page_size: 200 } }),
+      axios.get('/api/score-lines', { params: { university: props.schoolName, page_size: 200 } }),
     ])
 
     subjects.value = subjResp.data.data || []
