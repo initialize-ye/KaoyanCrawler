@@ -28,25 +28,32 @@ from src.config.settings import AI_PROVIDERS
 
 OCR_STRUCTURING_PROMPT = """你是一个考研招生数据提取专家。以下是从考研招生图片中通过 OCR 提取的文本。
 
-任务：从文本中提取所有学院和专业的招生数据，返回 JSON。
+任务：从文本中提取所有学院和专业的招生数据，返回 JSON。请尽可能完整地提取所有数据。
 
 OCR 文本：
 {ocr_text}
 
 提取规则：
-1. 识别所有学院（如"计算机学院"、"软件学院"、"信息学院"等）
-2. 每个学院下的所有专业都要提取，不要遗漏
-3. 专业代码是数字（如081200、085400），括号内的代码也要提取
-4. 招生人数：提取"招生"、"计划"、"拟录取"等后面的数字
-5. 分数线：提取"分数线"、"复试线"、"最低分"等后面的数字
-6. 初试科目：提取政治、英语一/二、数学一/二/三、专业课等
-7. 忽略水印文字和无关内容
-8. 如果有复试信息（时间、形式、内容、成绩计算方式）也要提取
+1. **学院识别**：识别所有学院（如"计算机学院"、"软件学院"、"信息学院"、"人工智能学院"等）
+2. **专业提取**：每个学院下的所有专业都要提取，不要遗漏任何一个专业
+3. **专业代码**：提取数字代码（如081200、085400、083900），括号内的也要提取
+4. **招生人数**：提取"招生"、"计划"、"拟录取"、"名额"等后面的数字
+5. **分数线**：提取"分数线"、"复试线"、"最低分"、"总分线"等后面的数字
+6. **复试人数**：提取"复试人数"、"进入复试"、"复试名单"等后面的数字
+7. **录取人数**：提取"录取人数"、"拟录取"、"录取名单"等后面的数字
+8. **复录比**：提取"复录比"、"录取比例"等后面的数字或比例
+9. **分数统计**：提取"最低分"、"最高分"、"平均分"、"中位数"等
+10. **初试科目**：提取政治、英语一/二、数学一/二/三、专业课（如408统考、408计算机学科专业基础）
+11. **复试信息**：提取复试时间、形式、内容、成绩计算方式
+12. **调剂信息**：提取"调剂"、"接收调剂"等信息
+13. **忽略**：水印文字（如"灰灰考研"、"皮皮灰"等）和无关内容
 
-注意：
-- 不同图片格式可能不同，灵活识别
-- 表格数据按行列对应提取
-- 缺失的字段填 null
+重要提示：
+- 不同图片格式可能不同，请灵活识别
+- 表格数据按行列对应提取，注意对齐
+- 同一学院可能有多个专业方向，都要提取
+- 如果数据不完整，提取能识别的部分，缺失字段填 null
+- 请务必提取所有能找到的数据，不要遗漏
 
 返回 JSON：
 {{
@@ -63,14 +70,23 @@ OCR 文本：
         {{
           "majorName": "专业名称",
           "majorCode": "专业代码",
+          "researchDirection": "研究方向",
           "subjects": ["科目1", "科目2", "科目3", "科目4"],
-          "retestScoreLine": "分数线",
-          "retestCount": "复试人数",
-          "retestScoreRange": "分数区间",
-          "singleSubjectRange": "单科区间",
           "plannedEnrollment": "招生人数",
-          "admissionScoreRange": "录取区间",
+          "retestScoreLine": "复试分数线",
+          "retestCount": "复试人数",
+          "retestAvgScore": "复试均分",
+          "admissionCount": "录取人数",
+          "admissionRatio": "复录比",
+          "admissionMinScore": "录取最低分",
+          "admissionMedianScore": "录取中位数",
+          "admissionMaxScore": "录取最高分",
+          "admissionAvgScore": "录取平均分",
+          "retestScoreRange": "复试分数区间",
+          "singleSubjectRange": "单科区间",
+          "admissionScoreRange": "录取分数区间",
           "specialProgram": "特殊项目或null",
+          "transferType": "调剂类型或null",
           "retestInfo": {{
             "time": "复试时间",
             "method": "复试形式",
@@ -145,13 +161,15 @@ class OCREngine:
                 "  pip install easyocr"
             )
 
-        # 图片预处理参数组合
+        # 图片预处理参数组合 - 更多组合以提高识别率
         pipelines = [
             {"name": "original", "contrast": 1.0, "denoise": False, "binarize": False},
             {"name": "high_contrast", "contrast": 1.8, "denoise": False, "binarize": False},
+            {"name": "very_high_contrast", "contrast": 2.5, "denoise": False, "binarize": False},
             {"name": "denoised", "contrast": 1.2, "denoise": True, "binarize": False},
             {"name": "binarized", "contrast": 1.0, "denoise": True, "binarize": True},
             {"name": "enhanced", "contrast": 1.5, "denoise": True, "binarize": True},
+            {"name": "sharp_enhanced", "contrast": 2.0, "denoise": False, "binarize": False, "sharpen": True},
         ]
 
         all_texts = []
@@ -211,6 +229,11 @@ class OCREngine:
         if config["contrast"] != 1.0:
             enhancer = ImageEnhance.Contrast(img)
             img = enhancer.enhance(config["contrast"])
+
+        # 锐化
+        if config.get("sharpen"):
+            enhancer = ImageEnhance.Sharpness(img)
+            img = enhancer.enhance(2.0)
 
         # 去噪
         if config["denoise"]:
