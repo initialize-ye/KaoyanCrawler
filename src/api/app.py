@@ -2140,6 +2140,11 @@ async def extract_image(
     # 设置识别模式
     extractor.recognition_mode = mode
 
+    # 验证模式
+    valid_modes = {"AI辅助", "纯OCR", "AI优先"}
+    if mode not in valid_modes:
+        mode = "AI辅助"
+
     # 读取图片
     try:
         image_bytes = await file.read()
@@ -2165,7 +2170,7 @@ async def extract_image(
     async def event_stream():
         # 启动识别任务
         task = asyncio.create_task(
-            extractor.extract_from_image(image_bytes, file.content_type, progress_callback)
+            extractor.extract_from_image(image_bytes, file.content_type, progress_callback, mode=mode)
         )
 
         # 流式返回进度

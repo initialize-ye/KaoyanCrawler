@@ -560,16 +560,23 @@ class ImageExtractor:
 
         return cleaned
 
-    async def extract_from_image(self, image_bytes: bytes, mime_type: str = "image/png", progress_callback=None) -> dict[str, Any]:
-        """从图片中提取结构化数据（纯 OCR 模式）。"""
+    async def extract_from_image(self, image_bytes: bytes, mime_type: str = "image/png", progress_callback=None, mode: str = "AI辅助") -> dict[str, Any]:
+        """从图片中提取结构化数据。
+
+        mode:
+          - "纯OCR": 仅用 OCR 提取文字 + 正则匹配，不调用 LLM
+          - "AI辅助": OCR + LLM 结构化（默认）
+          - "AI优先": OCR + LLM，使用更详细的提示词，尽可能提取所有数据
+        """
 
         def _notify(step: str, status: str, detail: str, progress: int):
             logger.info(f"[{step}] {status}: {detail}")
             if progress_callback:
                 progress_callback(step, status, detail, progress)
 
-        if not self.api_key:
-            return {"success": False, "error": "API Key未配置"}
+        # 纯OCR模式不需要API Key
+        if mode != "纯OCR" and not self.api_key:
+            return {"success": False, "error": "API Key未配置，请在设置中配置（纯OCR模式除外）"}
 
         try:
             engines = self._ocr.available_engines()
@@ -599,9 +606,11 @@ class ImageExtractor:
 
             _notify("clean", "done", f"清洗完成: {len(ocr_text)} → {len(cleaned_text)} 字符", 60)
 
-            # LLM 结构化
-            if self.api_key:
-                _notify("structure", "running", "正在使用 AI 进行数据清洗和结构化...", 65)
+            # LLM 结构化（非纯OCR模式）
+            if mode == "纯OCR":
+                _notify("structure", "skip", "纯OCR模式，跳过AI结构化", 80)
+            elif self.api_key:
+                _notify("structure", "running", f"正在使用 AI 进行数据清洗和结构化（{mode}模式）...", 65)
                 prompt = OCR_STRUCTURING_PROMPT.format(ocr_text=cleaned_text)
                 result = await self._call_llm(prompt)
 
@@ -611,7 +620,7 @@ class ImageExtractor:
                     result["cleaned_text"] = cleaned_text
                     result["ocr_passes"] = passes
                     result["ocr_engines"] = engines
-                    result["mode"] = "ocr+llm"
+                    result["mode"] = f"ocr+llm({mode})"
                     # 确保 colleges 存在且非空
                     colleges = result.get("colleges", [])
                     if not colleges:
@@ -619,7 +628,7 @@ class ImageExtractor:
                         basic_data = self._extract_basic_from_ocr(cleaned_text)
                         if basic_data.get("colleges"):
                             result["colleges"] = basic_data["colleges"]
-                            result["mode"] = "ocr+llm+fallback"
+                            result["mode"] = f"ocr+llm+fallback({mode})"
                     return result
                 else:
                     # LLM 解析失败，尝试用基本提取

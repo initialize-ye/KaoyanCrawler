@@ -14,23 +14,19 @@
     <div class="upload-area" v-if="!result && !loading">
       <!-- 识别模式选择 -->
       <div class="mode-select">
-        <span class="mode-label">识别模式：</span>
+        <span class="mode-label">识别方式：</span>
         <el-radio-group v-model="recognitionMode" size="default">
-          <el-radio-button value="复试统计">
-            <el-icon><DataAnalysis /></el-icon>
-            复试统计
-          </el-radio-button>
-          <el-radio-button value="录取名单">
-            <el-icon><Document /></el-icon>
-            录取名单
-          </el-radio-button>
-          <el-radio-button value="招生目录">
-            <el-icon><Notebook /></el-icon>
-            招生目录
-          </el-radio-button>
-          <el-radio-button value="自动识别">
+          <el-radio-button value="AI辅助">
             <el-icon><MagicStick /></el-icon>
-            自动识别
+            AI辅助
+          </el-radio-button>
+          <el-radio-button value="纯OCR">
+            <el-icon><Document /></el-icon>
+            纯OCR
+          </el-radio-button>
+          <el-radio-button value="AI优先">
+            <el-icon><DataAnalysis /></el-icon>
+            AI优先
           </el-radio-button>
         </el-radio-group>
       </div>
@@ -316,7 +312,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { CircleCheckFilled, CircleCloseFilled, MoreFilled, Close, RefreshRight, MagicStick, UploadFilled, Check, Plus, Delete, DataAnalysis, Document, Notebook } from '@element-plus/icons-vue'
+import { CircleCheckFilled, CircleCloseFilled, MoreFilled, Close, RefreshRight, MagicStick, UploadFilled, Check, Plus, Delete, DataAnalysis, Document } from '@element-plus/icons-vue'
 import { useDialog } from '../composables/useDialog'
 
 const emit = defineEmits(['open-settings', 'data-saved'])
@@ -333,7 +329,7 @@ const uploadRef = ref(null)
 const editableData = ref([])
 const abortController = ref(null)
 const currentImageIndex = ref(0)
-const recognitionMode = ref('自动识别')
+const recognitionMode = ref('AI辅助')
 
 // 进度相关
 const progressPercent = ref(0)
