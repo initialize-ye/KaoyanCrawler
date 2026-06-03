@@ -471,7 +471,7 @@ class ImageExtractor:
             # 只有代码没有名称，用代码作为标识
             for code in all_codes:
                 major = {
-                    "majorName": f"专业{code}",
+                    "majorName": code,
                     "majorCode": code,
                     "subjects": [],
                     "retestScoreLine": None,
