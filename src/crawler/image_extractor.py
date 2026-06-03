@@ -688,28 +688,6 @@ class ImageExtractor:
                     "raw_text": cleaned_text,
                 }
 
-            # AI 模式
-            if not self.api_key:
-                _notify("structure", "skip", "未配置 AI，仅返回 OCR 文本", 90)
-                basic_data = self._extract_basic_from_ocr(cleaned_text)
-                basic_colleges = basic_data.get("colleges", [])
-                basic_majors = sum(len(c.get("majors", [])) for c in basic_colleges)
-                return {
-                    "success": basic_majors > 0,
-                    "error": "未配置API Key" if basic_majors == 0 else "",
-                    "ocr_text": ocr_text,
-                    "cleaned_text": cleaned_text,
-                    "ocr_passes": passes,
-                    "ocr_engines": engines,
-                    "mode": "ocr_only",
-                    "schoolName": basic_data.get("schoolName"),
-                    "schoolWebsite": basic_data.get("schoolWebsite"),
-                    "duration": basic_data.get("duration"),
-                    "tuition": basic_data.get("tuition"),
-                    "colleges": basic_colleges,
-                    "raw_text": cleaned_text,
-                }
-
             # LLM 结构化
             _notify("structure", "running", f"正在调用 AI 分析数据（{mode}）...", 62)
             prompt = OCR_STRUCTURING_PROMPT.format(ocr_text=cleaned_text)

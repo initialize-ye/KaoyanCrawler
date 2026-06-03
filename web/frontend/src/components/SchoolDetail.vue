@@ -75,14 +75,14 @@
               <td>{{ row.department || '-' }}</td>
               <td class="mono-cell">{{ row.major_code || '-' }}</td>
               <td class="name-cell">{{ row.major_name || '-' }}</td>
-              <td class="num-cell">{{ row.enrollment || '-' }}</td>
-              <td class="num-cell highlight-red">{{ row.retest_score_line || '-' }}</td>
-              <td class="num-cell">{{ row.retest_count || '-' }}</td>
-              <td class="num-cell">{{ row.admission_count || '-' }}</td>
-              <td class="num-cell">{{ row.admission_ratio || '-' }}</td>
-              <td class="num-cell">{{ row.admission_min_score || '-' }}</td>
-              <td class="num-cell">{{ row.admission_avg_score || '-' }}</td>
-              <td class="num-cell">{{ row.admission_max_score || '-' }}</td>
+              <td class="num-cell">{{ row.enrollment ?? '-' }}</td>
+              <td class="num-cell highlight-red">{{ row.retest_score_line ?? '-' }}</td>
+              <td class="num-cell">{{ row.retest_count ?? '-' }}</td>
+              <td class="num-cell">{{ row.admission_count ?? '-' }}</td>
+              <td class="num-cell">{{ row.admission_ratio ?? '-' }}</td>
+              <td class="num-cell">{{ row.admission_min_score ?? '-' }}</td>
+              <td class="num-cell">{{ row.admission_avg_score ?? '-' }}</td>
+              <td class="num-cell">{{ row.admission_max_score ?? '-' }}</td>
               <td class="subjects-cell">
                 <span v-if="row.subject1 || row.subject2 || row.subject3 || row.subject4">
                   {{ [row.subject1, row.subject2, row.subject3, row.subject4].filter(Boolean).join('、') }}
@@ -140,9 +140,9 @@
               <td>{{ row.major || '-' }}</td>
               <td>{{ row.name || '-' }}</td>
               <td class="mono-cell">{{ row.exam_id || '-' }}</td>
-              <td class="num-cell">{{ row.initial_score || '-' }}</td>
-              <td class="num-cell">{{ row.retest_score || '-' }}</td>
-              <td class="num-cell">{{ row.total_score || '-' }}</td>
+              <td class="num-cell">{{ row.initial_score ?? '-' }}</td>
+              <td class="num-cell">{{ row.retest_score ?? '-' }}</td>
+              <td class="num-cell">{{ row.total_score ?? '-' }}</td>
               <td>{{ row.admission_status || '-' }}</td>
               <td>
                 <button class="icon-btn icon-btn--danger icon-btn--sm" @click="deleteAdmission(row.id)">
@@ -239,9 +239,9 @@
               <td>{{ row.category || '-' }}</td>
               <td>{{ row.discipline || '-' }}</td>
               <td class="mono-cell">{{ row.discipline_code || '-' }}</td>
-              <td class="num-cell highlight-red">{{ row.total_score || '-' }}</td>
-              <td class="num-cell">{{ row.score1 || '-' }}</td>
-              <td class="num-cell">{{ row.score2 || '-' }}</td>
+              <td class="num-cell highlight-red">{{ row.total_score ?? '-' }}</td>
+              <td class="num-cell">{{ row.score1 ?? '-' }}</td>
+              <td class="num-cell">{{ row.score2 ?? '-' }}</td>
               <td>
                 <button class="icon-btn icon-btn--danger icon-btn--sm" @click="deleteScoreLine(row.id)">
                   <span class="material-icons" style="font-size: 18px;">delete_outline</span>

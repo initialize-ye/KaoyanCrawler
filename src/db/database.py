@@ -626,3 +626,49 @@ class Database:
             await conn.execute("DELETE FROM schools WHERE name = ?", (university,))
             await conn.commit()
         return total
+
+    async def delete_by_id(self, table: str, record_id: int) -> bool:
+        """按ID删除单条记录。"""
+        if table not in self._VALID_TABLES:
+            return False
+        async with aiosqlite.connect(self.db_path) as conn:
+            cursor = await conn.execute(f"DELETE FROM {table} WHERE id = ?", (record_id,))
+            await conn.commit()
+            return cursor.rowcount > 0
+
+    async def batch_delete(self, table: str, ids: list[int]) -> int:
+        """批量删除记录。"""
+        if table not in self._VALID_TABLES or not ids:
+            return 0
+        async with aiosqlite.connect(self.db_path) as conn:
+            placeholders = ",".join("?" * len(ids))
+            cursor = await conn.execute(f"DELETE FROM {table} WHERE id IN ({placeholders})", ids)
+            await conn.commit()
+            return cursor.rowcount
+
+    async def delete_by_university_year(self, university: str, year: int | None = None) -> int:
+        """按学校+年份删除所有数据表记录。"""
+        total = 0
+        async with aiosqlite.connect(self.db_path) as conn:
+            for table in ["admission_records", "exam_subjects", "retest_rules", "score_lines"]:
+                if table not in self._VALID_TABLES:
+                    continue
+                if year:
+                    cursor = await conn.execute(f"DELETE FROM {table} WHERE university = ? AND year = ?", (university, year))
+                else:
+                    cursor = await conn.execute(f"DELETE FROM {table} WHERE university = ?", (university,))
+                total += cursor.rowcount
+            await conn.commit()
+        return total
+
+    async def update_by_id(self, table: str, record_id: int, updates: dict) -> bool:
+        """按ID更新记录。"""
+        if table not in self._VALID_TABLES or not updates:
+            return False
+        # 只允许更新已存在的列
+        set_clause = ", ".join(f"{k} = ?" for k in updates)
+        values = list(updates.values()) + [record_id]
+        async with aiosqlite.connect(self.db_path) as conn:
+            cursor = await conn.execute(f"UPDATE {table} SET {set_clause} WHERE id = ?", values)
+            await conn.commit()
+            return cursor.rowcount > 0

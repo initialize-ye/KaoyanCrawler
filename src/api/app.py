@@ -134,10 +134,8 @@ async def get_admissions(
 async def delete_admission(record_id: int):
     """删除录取记录。"""
     db = get_db()
-    async with aiosqlite.connect(db.db_path) as conn:
-        await conn.execute("DELETE FROM admission_records WHERE id = ?", (record_id,))
-        await conn.commit()
-    return {"status": "ok", "message": "已删除"}
+    deleted = await db.delete_by_id("admission_records", record_id)
+    return {"status": "ok" if deleted else "not_found", "message": "已删除" if deleted else "记录不存在"}
 
 
 @app.get("/api/subjects")
@@ -213,20 +211,16 @@ async def get_score_lines(
 async def delete_score_line(line_id: int):
     """删除分数线记录。"""
     db = get_db()
-    async with aiosqlite.connect(db.db_path) as conn:
-        await conn.execute("DELETE FROM score_lines WHERE id = ?", (line_id,))
-        await conn.commit()
-    return {"status": "ok", "message": "已删除"}
+    deleted = await db.delete_by_id("score_lines", line_id)
+    return {"status": "ok" if deleted else "not_found", "message": "已删除" if deleted else "记录不存在"}
 
 
 @app.delete("/api/retest-rules/{rule_id}")
 async def delete_retest_rule(rule_id: int):
     """删除复试细则记录。"""
     db = get_db()
-    async with aiosqlite.connect(db.db_path) as conn:
-        await conn.execute("DELETE FROM retest_rules WHERE id = ?", (rule_id,))
-        await conn.commit()
-    return {"status": "ok", "message": "已删除"}
+    deleted = await db.delete_by_id("retest_rules", rule_id)
+    return {"status": "ok" if deleted else "not_found", "message": "已删除" if deleted else "记录不存在"}
 
 
 # ========== 数据导出 API ==========
@@ -325,11 +319,8 @@ async def batch_delete_subjects(req: BatchDeleteRequest):
     if not req.ids:
         return {"status": "error", "message": "没有要删除的记录"}
     db = get_db()
-    async with aiosqlite.connect(db.db_path) as conn:
-        placeholders = ",".join("?" * len(req.ids))
-        await conn.execute(f"DELETE FROM exam_subjects WHERE id IN ({placeholders})", req.ids)
-        await conn.commit()
-    return {"status": "ok", "message": f"已删除 {len(req.ids)} 条记录"}
+    count = await db.batch_delete("exam_subjects", req.ids)
+    return {"status": "ok", "message": f"已删除 {count} 条记录"}
 
 
 @app.post("/api/admissions/batch-delete")
@@ -338,11 +329,8 @@ async def batch_delete_admissions(req: BatchDeleteRequest):
     if not req.ids:
         return {"status": "error", "message": "没有要删除的记录"}
     db = get_db()
-    async with aiosqlite.connect(db.db_path) as conn:
-        placeholders = ",".join("?" * len(req.ids))
-        await conn.execute(f"DELETE FROM admission_records WHERE id IN ({placeholders})", req.ids)
-        await conn.commit()
-    return {"status": "ok", "message": f"已删除 {len(req.ids)} 条记录"}
+    count = await db.batch_delete("admission_records", req.ids)
+    return {"status": "ok", "message": f"已删除 {count} 条记录"}
 
 
 class DeleteBySchoolRequest(BaseModel):
@@ -354,19 +342,7 @@ class DeleteBySchoolRequest(BaseModel):
 async def delete_subjects_by_school(req: DeleteBySchoolRequest):
     """按学校+年份删除全部招生目录记录。"""
     db = get_db()
-    async with aiosqlite.connect(db.db_path) as conn:
-        if req.year:
-            cursor = await conn.execute(
-                "DELETE FROM exam_subjects WHERE university = ? AND year = ?",
-                (req.university, req.year),
-            )
-        else:
-            cursor = await conn.execute(
-                "DELETE FROM exam_subjects WHERE university = ?",
-                (req.university,),
-            )
-        await conn.commit()
-        deleted = cursor.rowcount
+    deleted = await db.delete_by_university_year(req.university, req.year)
     return {"status": "ok", "message": f"已删除 {deleted} 条记录"}
 
 
@@ -374,19 +350,7 @@ async def delete_subjects_by_school(req: DeleteBySchoolRequest):
 async def delete_admissions_by_school(req: DeleteBySchoolRequest):
     """按学校+年份删除全部录取记录。"""
     db = get_db()
-    async with aiosqlite.connect(db.db_path) as conn:
-        if req.year:
-            cursor = await conn.execute(
-                "DELETE FROM admission_records WHERE university = ? AND year = ?",
-                (req.university, req.year),
-            )
-        else:
-            cursor = await conn.execute(
-                "DELETE FROM admission_records WHERE university = ?",
-                (req.university,),
-            )
-        await conn.commit()
-        deleted = cursor.rowcount
+    deleted = await db.delete_by_university_year(req.university, req.year)
     return {"status": "ok", "message": f"已删除 {deleted} 条记录"}
 
 
@@ -394,61 +358,7 @@ async def delete_admissions_by_school(req: DeleteBySchoolRequest):
 async def delete_all_by_school(req: DeleteBySchoolRequest):
     """按学校+年份删除全部数据（招生目录、录取名单、分数线、复试规则）。"""
     db = get_db()
-    total_deleted = 0
-    async with aiosqlite.connect(db.db_path) as conn:
-        # 删除招生目录
-        if req.year:
-            cursor = await conn.execute(
-                "DELETE FROM exam_subjects WHERE university = ? AND year = ?",
-                (req.university, req.year),
-            )
-        else:
-            cursor = await conn.execute(
-                "DELETE FROM exam_subjects WHERE university = ?",
-                (req.university,),
-            )
-        total_deleted += cursor.rowcount
-
-        # 删除录取记录
-        if req.year:
-            cursor = await conn.execute(
-                "DELETE FROM admission_records WHERE university = ? AND year = ?",
-                (req.university, req.year),
-            )
-        else:
-            cursor = await conn.execute(
-                "DELETE FROM admission_records WHERE university = ?",
-                (req.university,),
-            )
-        total_deleted += cursor.rowcount
-
-        # 删除分数线
-        if req.year:
-            cursor = await conn.execute(
-                "DELETE FROM score_lines WHERE university = ? AND year = ?",
-                (req.university, req.year),
-            )
-        else:
-            cursor = await conn.execute(
-                "DELETE FROM score_lines WHERE university = ?",
-                (req.university,),
-            )
-        total_deleted += cursor.rowcount
-
-        # 删除复试规则
-        if req.year:
-            cursor = await conn.execute(
-                "DELETE FROM retest_rules WHERE university = ? AND year = ?",
-                (req.university, req.year),
-            )
-        else:
-            cursor = await conn.execute(
-                "DELETE FROM retest_rules WHERE university = ?",
-                (req.university,),
-            )
-        total_deleted += cursor.rowcount
-
-        await conn.commit()
+    total_deleted = await db.delete_by_university_year(req.university, req.year)
     return {"status": "ok", "message": f"已删除 {total_deleted} 条记录"}
 
 
@@ -456,30 +366,31 @@ async def delete_all_by_school(req: DeleteBySchoolRequest):
 async def delete_subject(subject_id: int):
     """删除招生目录记录。"""
     db = get_db()
-    async with aiosqlite.connect(db.db_path) as conn:
-        await conn.execute("DELETE FROM exam_subjects WHERE id = ?", (subject_id,))
-        await conn.commit()
-    return {"status": "ok", "message": "已删除"}
+    deleted = await db.delete_by_id("exam_subjects", subject_id)
+    return {"status": "ok" if deleted else "not_found", "message": "已删除" if deleted else "记录不存在"}
 
+
+class UpdateSubjectRequest(BaseModel):
+    university: str | None = None
+    year: int | None = None
+    major_code: str | None = None
+    major_name: str | None = None
+    department: str | None = None
+    research_direction: str | None = None
+    subject1: str | None = None
+    subject2: str | None = None
+    subject3: str | None = None
+    subject4: str | None = None
 
 @app.put("/api/subjects/{subject_id}")
-async def update_subject(subject_id: int, data: dict):
+async def update_subject(subject_id: int, data: UpdateSubjectRequest):
     """更新招生目录记录。"""
     db = get_db()
-    fields = []
-    values = []
-    for key in ["university", "year", "major_code", "major_name", "department",
-                 "research_direction", "subject1", "subject2", "subject3", "subject4"]:
-        if key in data:
-            fields.append(f"{key} = ?")
-            values.append(data[key])
-    if not fields:
+    updates = {k: v for k, v in data.model_dump().items() if v is not None}
+    if not updates:
         return {"status": "error", "message": "没有要更新的字段"}
-    values.append(subject_id)
-    async with aiosqlite.connect(db.db_path) as conn:
-        await conn.execute(f"UPDATE exam_subjects SET {', '.join(fields)} WHERE id = ?", values)
-        await conn.commit()
-    return {"status": "ok", "message": "已更新"}
+    updated = await db.update_by_id("exam_subjects", subject_id, updates)
+    return {"status": "ok" if updated else "not_found", "message": "已更新" if updated else "记录不存在"}
 
 
 @app.get("/api/universities")
