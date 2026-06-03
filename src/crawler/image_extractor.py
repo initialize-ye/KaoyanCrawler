@@ -503,11 +503,47 @@ class ImageExtractor:
                     majors_data.append({"majorName": name, "majorCode": None, "subjects": []})
 
         # 构建学院和专业结构
-        if colleges:
+        if colleges and majors_data:
+            # 根据专业代码在文本中的位置，分配到最近的学院
+            college_positions = []
+            for c in colleges:
+                pos = text.find(c)
+                if pos >= 0:
+                    college_positions.append((c, pos))
+            college_positions.sort(key=lambda x: x[1])
+
+            # 为每个学院初始化专业列表
+            college_majors = {c: [] for c in colleges}
+
+            for major in majors_data:
+                code = major.get("majorCode", "")
+                if code:
+                    pos = text.find(code)
+                    if pos >= 0 and college_positions:
+                        # 找到最近的学院（在该专业之前的最后一个学院）
+                        assigned = college_positions[0][0]
+                        for cname, cpos in college_positions:
+                            if cpos <= pos:
+                                assigned = cname
+                            else:
+                                break
+                        college_majors[assigned].append(major)
+                    else:
+                        college_majors[colleges[0]].append(major)
+                else:
+                    college_majors[colleges[0]].append(major)
+
+            for c in colleges:
+                result["colleges"].append({
+                    "collegeName": c,
+                    "collegeWebsite": None,
+                    "majors": college_majors[c] if college_majors[c] else [{"majorName": None, "majorCode": None, "subjects": []}],
+                })
+        elif colleges:
             result["colleges"].append({
                 "collegeName": colleges[0],
                 "collegeWebsite": None,
-                "majors": majors_data if majors_data else [{"majorName": None, "majorCode": None, "subjects": []}],
+                "majors": [{"majorName": None, "majorCode": None, "subjects": []}],
             })
             for c in colleges[1:]:
                 result["colleges"].append({"collegeName": c, "collegeWebsite": None, "majors": []})

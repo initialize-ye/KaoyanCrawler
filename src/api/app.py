@@ -90,8 +90,13 @@ def get_ai_extractor() -> AIExtractor | None:
     )
 
 
+_db_instance: Database | None = None
+
 def get_db() -> Database:
-    return Database(DB_PATH)
+    global _db_instance
+    if _db_instance is None:
+        _db_instance = Database(DB_PATH)
+    return _db_instance
 
 
 @app.get("/api/stats")
