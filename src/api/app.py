@@ -2210,15 +2210,19 @@ async def extract_image(
 async def save_image_data(data: dict):
     """保存图片识别结果到数据库（按学校分类）。"""
     from datetime import datetime
+    from src.models.schemas import ExamSubject
 
     db = get_db()
     school_name = data.get("schoolName", "")
     if not school_name:
         return {"success": False, "error": "缺少学校名称"}
 
-    saved_count = 0
-    errors = []
-    year = datetime.now().year
+    year = data.get("year", datetime.now().year)
+    if isinstance(year, str):
+        try:
+            year = int(year)
+        except ValueError:
+            year = datetime.now().year
 
     # 保存学校信息到 schools 表
     await db.upsert_school(
@@ -2229,117 +2233,57 @@ async def save_image_data(data: dict):
         scholarship=data.get("scholarship", ""),
     )
 
-    async with aiosqlite.connect(db.db_path) as conn:
-        # 支持新的 rows 格式（可编辑表格）
-        rows = data.get("rows", [])
-        if rows:
-            for row in rows:
-                major_name = row.get("majorName", "").strip()
-                if not major_name:
-                    continue
+    # 将行数据转换为 ExamSubject 对象
+    subjects = []
+    rows = data.get("rows", [])
+    for row in rows:
+        major_name = row.get("majorName", "").strip()
+        if not major_name:
+            continue
 
-                college_name = row.get("collegeName", "").strip()
-                major_code = row.get("majorCode", "").strip()
-                subjects_str = row.get("subjects", "")
-                subjects = [s.strip() for s in subjects_str.split("、") if s.strip()] if subjects_str else []
+        college_name = row.get("collegeName", "").strip()
+        major_code = row.get("majorCode", "").strip()
+        subjects_str = row.get("subjects", "")
+        subject_list = [s.strip() for s in subjects_str.split("、") if s.strip()] if subjects_str else []
 
-                subject1 = subjects[0] if len(subjects) > 0 else None
-                subject2 = subjects[1] if len(subjects) > 1 else None
-                subject3 = subjects[2] if len(subjects) > 2 else None
-                subject4 = subjects[3] if len(subjects) > 3 else None
+        def to_float(v):
+            try:
+                return float(v) if v else None
+            except (ValueError, TypeError):
+                return None
 
-                enrollment = None
-                if row.get("plannedEnrollment"):
-                    try:
-                        enrollment = int(row["plannedEnrollment"])
-                    except ValueError:
-                        pass
+        def to_int(v):
+            try:
+                return int(v) if v else None
+            except (ValueError, TypeError):
+                return None
 
-                # 解析新增字段
-                def to_float(v):
-                    try:
-                        return float(v) if v else None
-                    except (ValueError, TypeError):
-                        return None
+        subject = ExamSubject(
+            university=school_name,
+            year=year,
+            major_code=major_code,
+            major_name=major_name,
+            department=college_name,
+            research_direction=row.get("researchDirection", ""),
+            enrollment=to_int(row.get("plannedEnrollment")),
+            subject1=subject_list[0] if len(subject_list) > 0 else None,
+            subject2=subject_list[1] if len(subject_list) > 1 else None,
+            subject3=subject_list[2] if len(subject_list) > 2 else None,
+            subject4=subject_list[3] if len(subject_list) > 3 else None,
+            retest_score_line=to_float(row.get("retestScoreLine")),
+            retest_count=to_int(row.get("retestCount")),
+            retest_avg_score=to_float(row.get("retestAvgScore")),
+            admission_count=to_int(row.get("admissionCount")),
+            admission_ratio=to_float(row.get("admissionRatio")),
+            admission_min_score=to_float(row.get("admissionMinScore")),
+            admission_median_score=to_float(row.get("admissionMedianScore")),
+            admission_max_score=to_float(row.get("admissionMaxScore")),
+            admission_avg_score=to_float(row.get("admissionAvgScore")),
+            transfer_type=row.get("transferType", ""),
+        )
+        subjects.append(subject)
 
-                def to_int(v):
-                    try:
-                        return int(v) if v else None
-                    except (ValueError, TypeError):
-                        return None
+    if subjects:
+        await db.insert_exam_subjects(subjects)
 
-                retest_score_line = to_float(row.get("retestScoreLine"))
-                retest_count = to_int(row.get("retestCount"))
-                retest_avg_score = to_float(row.get("retestAvgScore"))
-                admission_count = to_int(row.get("admissionCount"))
-                admission_ratio = to_float(row.get("admissionRatio"))
-                admission_min_score = to_float(row.get("admissionMinScore"))
-                admission_median_score = to_float(row.get("admissionMedianScore"))
-                admission_max_score = to_float(row.get("admissionMaxScore"))
-                admission_avg_score = to_float(row.get("admissionAvgScore"))
-                transfer_type = row.get("transferType", "")
-
-                try:
-                    await conn.execute(
-                        """INSERT OR REPLACE INTO exam_subjects
-                        (university, year, major_code, major_name, department,
-                         research_direction, enrollment, subject1, subject2, subject3, subject4,
-                         retest_score_line, retest_count, retest_avg_score,
-                         admission_count, admission_ratio,
-                         admission_min_score, admission_median_score,
-                         admission_max_score, admission_avg_score,
-                         transfer_type, source_url, crawl_time)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                        (
-                            school_name, year, major_code, major_name,
-                            college_name, '', enrollment,
-                            subject1, subject2, subject3, subject4,
-                            retest_score_line, retest_count, retest_avg_score,
-                            admission_count, admission_ratio,
-                            admission_min_score, admission_median_score,
-                            admission_max_score, admission_avg_score,
-                            transfer_type, '', datetime.now().isoformat(),
-                        )
-                    )
-                    saved_count += 1
-                except Exception as e:
-                    errors.append(f"{major_name}: {str(e)}")
-        else:
-            # 兼容旧的 colleges/majors 格式
-            for college in data.get("colleges", []):
-                college_name = college.get("collegeName", "")
-                for major in college.get("majors", []):
-                    major_name = major.get("majorName", "")
-                    major_code = major.get("majorCode", "")
-                    if not major_name:
-                        continue
-
-                    subjects = major.get("subjects", [])
-                    subject1 = subjects[0] if len(subjects) > 0 else None
-                    subject2 = subjects[1] if len(subjects) > 1 else None
-                    subject3 = subjects[2] if len(subjects) > 2 else None
-                    subject4 = subjects[3] if len(subjects) > 3 else None
-
-                    try:
-                        await conn.execute(
-                            """INSERT OR REPLACE INTO exam_subjects
-                            (university, year, major_code, major_name, department,
-                             research_direction, enrollment, subject1, subject2, subject3, subject4,
-                             source_url, crawl_time)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                            (
-                                school_name, year, major_code or '', major_name,
-                                college_name, '', major.get("plannedEnrollment"),
-                                subject1, subject2, subject3, subject4,
-                                '', datetime.now().isoformat(),
-                            )
-                        )
-                        saved_count += 1
-                    except Exception as e:
-                        errors.append(f"{major_name}: {str(e)}")
-
-        await conn.commit()
-
-    if errors:
-        return {"success": True, "message": f"保存完成: {saved_count} 条成功, {len(errors)} 条失败", "errors": errors}
-    return {"success": True, "message": f"成功保存 {saved_count} 条数据到 {school_name}"}
+    return {"success": True, "message": f"成功保存 {len(subjects)} 条数据到 {school_name}", "year": year}

@@ -218,12 +218,15 @@ class OCREngine:
 
         img = PILImage.open(io.BytesIO(image_bytes))
 
-        # 去水印（灰灰考研等灰色水印）
-        img = self._remove_watermark(img)
+        # 去水印（需要在RGB模式下进行）
+        if img.mode != 'RGB':
+            img_rgb = img.convert('RGB')
+        else:
+            img_rgb = img
+        img_rgb = self._remove_watermark(img_rgb)
 
         # 转灰度
-        if img.mode != 'L':
-            img = img.convert('L')
+        img = img_rgb.convert('L')
 
         # 调整对比度
         if config["contrast"] != 1.0:
@@ -319,32 +322,13 @@ class OCREngine:
             return "", 0.0
 
     def _merge_texts(self, texts: list[str]) -> str:
-        """投票合并多轮 OCR 文本：按行对齐，每行取出现次数最多的版本。"""
+        """合并多轮 OCR 文本：取总字符数最多的版本（通常最完整）。"""
         if len(texts) == 1:
             return texts[0]
 
-        # 按行拆分
-        split_texts = [t.split('\n') for t in texts]
-        max_lines = max(len(lines) for lines in split_texts)
-
-        merged_lines = []
-        for i in range(max_lines):
-            candidates = []
-            for lines in split_texts:
-                if i < len(lines) and lines[i].strip():
-                    candidates.append(lines[i].strip())
-
-            if not candidates:
-                merged_lines.append('')
-                continue
-
-            # 按出现次数投票，相同次数取最长的
-            from collections import Counter
-            counts = Counter(candidates)
-            best = max(counts.keys(), key=lambda c: (counts[c], len(c)))
-            merged_lines.append(best)
-
-        return '\n'.join(merged_lines)
+        # 取字符数最多的版本作为主文本
+        best_idx = max(range(len(texts)), key=lambda i: len(texts[i]))
+        return texts[best_idx]
 
 
 class ImageExtractor:

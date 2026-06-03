@@ -137,6 +137,16 @@ class Database:
                 ("department", "TEXT NOT NULL DEFAULT ''"),
                 ("research_direction", "TEXT NOT NULL DEFAULT ''"),
                 ("enrollment", "INTEGER"),
+                ("retest_score_line", "REAL"),
+                ("retest_count", "INTEGER"),
+                ("retest_avg_score", "REAL"),
+                ("admission_count", "INTEGER"),
+                ("admission_ratio", "REAL"),
+                ("admission_min_score", "REAL"),
+                ("admission_median_score", "REAL"),
+                ("admission_max_score", "REAL"),
+                ("admission_avg_score", "REAL"),
+                ("transfer_type", "TEXT DEFAULT ''"),
             ]:
                 try:
                     await db.execute(f"ALTER TABLE exam_subjects ADD COLUMN {column} {col_def}")

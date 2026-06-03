@@ -189,6 +189,11 @@
           <el-descriptions-item label="学校名称">
             <el-input v-model="result.schoolName" size="small" />
           </el-descriptions-item>
+          <el-descriptions-item label="数据年份">
+            <el-select v-model="selectedYear" size="small" style="width: 100%">
+              <el-option v-for="y in yearOptions" :key="y" :label="y + '年'" :value="y" />
+            </el-select>
+          </el-descriptions-item>
           <el-descriptions-item label="学校官网">
             <el-input v-model="result.schoolWebsite" size="small" placeholder="https://" />
           </el-descriptions-item>
@@ -330,6 +335,8 @@ const editableData = ref([])
 const abortController = ref(null)
 const currentImageIndex = ref(0)
 const recognitionMode = ref('AI辅助')
+const selectedYear = ref(new Date().getFullYear())
+const yearOptions = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i)
 
 // 进度相关
 const progressPercent = ref(0)
@@ -738,6 +745,7 @@ async function saveToDatabase() {
       duration: result.value.duration || '',
       tuition: result.value.tuition || '',
       scholarship: result.value.scholarship || '',
+      year: selectedYear.value,
       rows: validRows,
     }
 
