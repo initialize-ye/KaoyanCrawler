@@ -381,7 +381,10 @@ class ImageExtractor:
         )
 
     def _extract_basic_from_ocr(self, text: str) -> dict[str, Any]:
-        """从 OCR 文本中提取基本信息（无需 LLM）。"""
+        """从 OCR 文本中提取基本信息（无需 LLM）。
+
+        策略：按专业代码分割文本，对每个专业区段独立提取数据。
+        """
         result = {
             "schoolName": None,
             "schoolWebsite": None,
@@ -395,149 +398,137 @@ class ImageExtractor:
         if school_match:
             result["schoolName"] = school_match.group(1)
 
-        # 提取官网
         url_match = re.search(r'(https?://[^\s]+)', text)
         if url_match:
             result["schoolWebsite"] = url_match.group(1)
 
-        # 提取学制
         duration_match = re.search(r'学制\s*(\d+年)', text)
         if duration_match:
             result["duration"] = duration_match.group(1)
 
-        # 提取学费
         tuition_match = re.search(r'学费\s*(\d+[/每]年)', text)
         if tuition_match:
             result["tuition"] = tuition_match.group(1)
 
         # 提取学院名称
-        college_pattern = r'([一-龥]+(?:学院|研究院|学部))'
-        colleges = list(set(re.findall(college_pattern, text)))
+        colleges = list(set(re.findall(r'([一-龥]+(?:学院|研究院|学部))', text)))
 
-        # 提取专业代码和名称（如 081200 计算机科学与技术）
-        major_code_pattern = r'(\d{6})\s*([一-龥]{2,}(?:工程|技术|科学|学|理论|设计|管理|安全|商务|会计|法律|教育|翻译|新闻|艺术))'
-        coded_majors = re.findall(major_code_pattern, text)
+        # 按专业代码分割文本，提取每个专业的数据
+        code_pattern = re.compile(r'\b(\d{6})\b')
+        code_positions = [(m.group(1), m.start()) for m in code_pattern.finditer(text)]
 
-        # 提取所有6位专业代码
-        all_codes = re.findall(r'\b(\d{6})\b', text)
-
-        # 提取分数线数据（如 75/300, 50/50/75/75/300）
-        score_line_pattern = r'(\d+)[/／](\d+)[/／](\d+)[/／](\d+)[/／](\d+)'
-        score_lines = re.findall(score_line_pattern, text)
-
-        # 提取复试线（如 复试线 328 或单独的3位数分数线）
-        retest_line_matches = re.findall(r'复试线\s*(\d{3})', text)
-
-        # 提取招生人数（如 拟招生人数 5 或 数字后跟 人）
-        enrollment_matches = re.findall(r'(?:拟招生|招生|计划)\s*(?:人数)?\s*(\d+)', text)
-
-        # 提取复试人数、录取人数、复录比等
-        retest_count_matches = re.findall(r'复试\s*(?:人数)?\s*(\d+)', text)
-        admission_count_matches = re.findall(r'录取\s*(?:人数)?\s*(\d+)', text)
-        ratio_matches = re.findall(r'复录比\s*([\d.]+)', text)
-
-        # 提取分数统计（最低分、中位数、最高分、平均分）
-        min_score_matches = re.findall(r'最低分\s*(\d+)', text)
-        median_score_matches = re.findall(r'中位数\s*(\d+)', text)
-        max_score_matches = re.findall(r'最高分\s*(\d+)', text)
-        avg_score_matches = re.findall(r'平均分\s*(\d+)', text)
-
-        # 提取科目信息（如 408, 409）
-        subject_matches = re.findall(r'\b(4\d{2})\b', text)
-
-        # 构建专业数据
         majors_data = []
+        for i, (code, start) in enumerate(code_positions):
+            end = code_positions[i + 1][1] if i + 1 < len(code_positions) else len(text)
+            section = text[start:end]
 
-        if coded_majors:
-            for code, name in coded_majors:
-                major = {
-                    "majorName": name,
-                    "majorCode": code,
-                    "subjects": [],
-                    "retestScoreLine": None,
-                    "retestCount": None,
-                    "retestAvgScore": None,
-                    "admissionCount": None,
-                    "admissionRatio": None,
-                    "admissionMinScore": None,
-                    "admissionMedianScore": None,
-                    "admissionMaxScore": None,
-                    "admissionAvgScore": None,
-                    "plannedEnrollment": None,
-                    "transferType": None,
-                }
-                majors_data.append(major)
-        elif all_codes:
-            # 只有代码没有名称，用代码作为标识
-            for code in all_codes:
-                major = {
-                    "majorName": code,
-                    "majorCode": code,
-                    "subjects": [],
-                    "retestScoreLine": None,
-                    "retestCount": None,
-                    "plannedEnrollment": None,
-                }
-                majors_data.append(major)
+            # 提取专业名称（代码后面的中文）
+            name_match = re.search(r'\d{6}\s*([一-龥]{2,}(?:工程|技术|科学|学|理论|设计|管理|安全|商务|会计|法律|教育|翻译|新闻|艺术))', section)
+            major_name = name_match.group(1) if name_match else code
+
+            # 提取招生人数
+            enrollment = None
+            enrollment_match = re.search(r'(?:拟招生|招生|计划|名额)\s*(\d{1,3})', section)
+            if enrollment_match:
+                enrollment = int(enrollment_match.group(1))
+
+            # 提取分数线（格式：75/300 中的 300 是总分线）
+            score_line = None
+            total_score_match = re.search(r'(\d+)[/／](\d{3})\b', section)
+            if total_score_match:
+                score_line = int(total_score_match.group(2))
+
+            # 提取复试人数、录取人数
+            retest_count = None
+            admission_count = None
+
+            # 在"未区分"标记附近找数字
+            undiff_match = re.search(r'未区[分查].*?(\d{1,3})\s+(\d{1,3})', section)
+            if undiff_match:
+                retest_count = int(undiff_match.group(1))
+                admission_count = int(undiff_match.group(2))
+
+            # 提取复录比（1.xx 格式，范围 0.5-5.0）
+            ratio = None
+            ratio_match = re.search(r'(\d+\.\d{1,2})\b', section)
+            if ratio_match:
+                val = float(ratio_match.group(1))
+                if 0.5 < val < 5.0:
+                    ratio = val
+
+            # 提取分数统计（在复录比后面的4个3位数：最低 中位 最高 平均）
+            min_score = median_score = max_score = avg_score = None
+            if ratio_match:
+                after_ratio = section[ratio_match.end():]
+                score_nums = re.findall(r'(\d{3})\b', after_ratio)
+                if len(score_nums) >= 4:
+                    min_score = int(score_nums[0])
+                    median_score = int(score_nums[1])
+                    max_score = int(score_nums[2])
+                    avg_score = int(score_nums[3])
+                elif len(score_nums) >= 2:
+                    min_score = int(score_nums[0])
+                    max_score = int(score_nums[1])
+
+            # 提取复试人数和录取人数（在分数线之后、复录比之前）
+            retest_count = None
+            admission_count = None
+            if total_score_match and ratio_match:
+                between = section[total_score_match.end():ratio_match.start()]
+                nums = re.findall(r'(\d{1,3})\b', between)
+                if len(nums) >= 2:
+                    retest_count = int(nums[0])
+                    admission_count = int(nums[1])
+                elif len(nums) == 1:
+                    admission_count = int(nums[0])
+
+            # 提取科目代码
+            subjects = []
+            subj_matches = re.findall(r'\b(4\d{2})\b', section)
+            if subj_matches:
+                subjects = list(dict.fromkeys(subj_matches))  # 去重保序
+
+            # 调剂信息
+            transfer_type = None
+            if '一志愿' in section:
+                transfer_type = '一志愿'
+            elif '调剂' in section:
+                transfer_type = '调剂'
+
+            majors_data.append({
+                "majorName": major_name,
+                "majorCode": code,
+                "subjects": subjects,
+                "plannedEnrollment": enrollment,
+                "retestScoreLine": score_line,
+                "retestCount": retest_count,
+                "admissionCount": admission_count,
+                "admissionRatio": ratio,
+                "admissionMinScore": min_score,
+                "admissionMedianScore": median_score,
+                "admissionMaxScore": max_score,
+                "admissionAvgScore": avg_score,
+                "transferType": transfer_type,
+            })
 
         # 如果没有找到专业代码，尝试用中文专业名
         if not majors_data:
-            major_name_pattern = r'([一-龥]{2,}(?:工程|技术|科学|学|理论|设计|管理|安全|商务|会计|法律|教育|翻译|新闻|艺术))'
-            name_matches = re.findall(major_name_pattern, text)
+            name_matches = re.findall(r'([一-龥]{2,}(?:工程|技术|科学|学|理论|设计|管理|安全|商务|会计|法律|教育|翻译|新闻|艺术))', text)
             for name in set(name_matches):
-                if len(name) >= 2 and name not in ('大学', '学院', '研究院', '复试', '录取', '初试', '成绩'):
-                    majors_data.append({
-                        "majorName": name,
-                        "majorCode": None,
-                        "subjects": [],
-                        "retestScoreLine": None,
-                        "retestCount": None,
-                        "plannedEnrollment": None,
-                    })
-
-        # 将提取到的数据分配给专业
-        for i, major in enumerate(majors_data):
-            if retest_line_matches and i < len(retest_line_matches):
-                major["retestScoreLine"] = int(retest_line_matches[i])
-            if enrollment_matches and i < len(enrollment_matches):
-                major["plannedEnrollment"] = int(enrollment_matches[i])
-            if retest_count_matches and i < len(retest_count_matches):
-                major["retestCount"] = int(retest_count_matches[i])
-            if admission_count_matches and i < len(admission_count_matches):
-                major["admissionCount"] = int(admission_count_matches[i])
-            if ratio_matches and i < len(ratio_matches):
-                major["admissionRatio"] = float(ratio_matches[i])
-            if min_score_matches and i < len(min_score_matches):
-                major["admissionMinScore"] = int(min_score_matches[i])
-            if median_score_matches and i < len(median_score_matches):
-                major["admissionMedianScore"] = int(median_score_matches[i])
-            if max_score_matches and i < len(max_score_matches):
-                major["admissionMaxScore"] = int(max_score_matches[i])
-            if avg_score_matches and i < len(avg_score_matches):
-                major["admissionAvgScore"] = int(avg_score_matches[i])
-            if subject_matches:
-                major["subjects"] = [f"科目{s}" for s in subject_matches[:4]]
+                if len(name) >= 2 and name not in ('大学', '学院', '研究院', '复试', '录取', '初试', '成绩', '人数'):
+                    majors_data.append({"majorName": name, "majorCode": None, "subjects": []})
 
         # 构建学院和专业结构
         if colleges:
-            # 按学院分组（简单策略：第一个学院包含所有专业）
             result["colleges"].append({
                 "collegeName": colleges[0],
                 "collegeWebsite": None,
                 "majors": majors_data if majors_data else [{"majorName": None, "majorCode": None, "subjects": []}],
             })
             for c in colleges[1:]:
-                result["colleges"].append({
-                    "collegeName": c,
-                    "collegeWebsite": None,
-                    "majors": [],
-                })
+                result["colleges"].append({"collegeName": c, "collegeWebsite": None, "majors": []})
         elif majors_data:
-            result["colleges"].append({
-                "collegeName": None,
-                "collegeWebsite": None,
-                "majors": majors_data,
-            })
+            result["colleges"].append({"collegeName": None, "collegeWebsite": None, "majors": majors_data})
 
         return result
 
@@ -839,10 +830,17 @@ class ImageExtractor:
                 }
                 dept_map[dept].append(major)
 
-            result["colleges"] = [
-                {"collegeName": dept, "collegeWebsite": None, "majors": majors}
-                for dept, majors in dept_map.items()
-            ]
+            # 去重：同一学院下按 majorCode+majorName 去重
+            result["colleges"] = []
+            for dept, majors in dept_map.items():
+                seen = set()
+                unique_majors = []
+                for m in majors:
+                    key = (m.get("majorCode"), m.get("majorName"), m.get("researchDirection"))
+                    if key not in seen:
+                        seen.add(key)
+                        unique_majors.append(m)
+                result["colleges"].append({"collegeName": dept, "collegeWebsite": None, "majors": unique_majors})
             return result
 
         # 情况3: LLM 返回了 records 列表（录取名单格式）
