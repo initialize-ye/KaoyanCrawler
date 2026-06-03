@@ -144,7 +144,7 @@ class OCREngine:
             engines.append("EasyOCR")
         return engines
 
-    def extract_text(self, image_bytes: bytes) -> tuple[str, int, list[str]]:
+    def extract_text(self, image_bytes: bytes, progress_callback=None) -> tuple[str, int, list[str]]:
         """从图片中提取文字。
 
         Args:
