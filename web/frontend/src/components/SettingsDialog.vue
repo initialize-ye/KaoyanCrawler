@@ -35,6 +35,9 @@
         <div class="status-bar">
           <el-tag v-if="aiStatus.available" type="success" effect="dark">{{ aiStatus.message }}</el-tag>
           <el-tag v-else type="danger" effect="dark">{{ aiStatus.message }}</el-tag>
+          <el-button size="small" @click="testConnection" :loading="testing" style="margin-left: 12px">
+            测试连接
+          </el-button>
         </div>
       </el-form-item>
     </el-form>
@@ -57,6 +60,7 @@ const { isMobile, dialogWidth } = useDialog('600px')
 
 const visible = ref(false)
 const saving = ref(false)
+const testing = ref(false)
 const providers = ref({})
 const aiStatus = ref({ available: false, message: '未配置' })
 
@@ -156,6 +160,34 @@ const saveSettings = async () => {
     ElMessage.error('保存失败: ' + (e.response?.data?.detail || e.message || '未知错误'))
   } finally {
     saving.value = false
+  }
+}
+
+const testConnection = async () => {
+  if (!form.value.ai_api_key?.trim()) {
+    ElMessage.warning('请先输入API Key')
+    return
+  }
+  testing.value = true
+  try {
+    // 先保存当前设置
+    await axios.post('/api/settings', {
+      ...form.value,
+      ai_api_key: form.value.ai_api_key.trim(),
+    })
+    // 然后测试连接
+    const { data } = await axios.post('/api/test-connection')
+    if (data.success) {
+      ElMessage.success(data.message || '连接成功')
+      aiStatus.value = { available: true, message: data.message || '连接正常' }
+    } else {
+      ElMessage.error(data.message || '连接失败')
+      aiStatus.value = { available: false, message: data.message || '连接失败' }
+    }
+  } catch (e) {
+    ElMessage.error('测试失败: ' + (e.response?.data?.detail || e.message || '未知错误'))
+  } finally {
+    testing.value = false
   }
 }
 

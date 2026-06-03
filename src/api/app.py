@@ -1995,6 +1995,67 @@ async def ai_status():
     }
 
 
+@app.post("/api/test-connection")
+async def test_connection():
+    """测试AI连接是否可用。"""
+    config = get_ai_config()
+    if not config:
+        return {"success": False, "message": "未配置AI，请先配置API Key"}
+
+    provider = config.get("provider", "")
+    api_key = config.get("api_key", "")
+    base_url = config.get("base_url", "")
+    model = config.get("model", "")
+
+    if not api_key:
+        return {"success": False, "message": "API Key为空"}
+
+    try:
+        if provider == "claude":
+            url = base_url or AI_PROVIDERS.get(provider, {}).get("base_url", "")
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.post(
+                    url,
+                    headers={
+                        "x-api-key": api_key,
+                        "anthropic-version": "2023-06-01",
+                        "content-type": "application/json",
+                    },
+                    json={
+                        "model": model,
+                        "max_tokens": 10,
+                        "messages": [{"role": "user", "content": "Hi"}],
+                    },
+                )
+                if resp.status_code == 200:
+                    return {"success": True, "message": f"连接成功 ({provider}: {model})"}
+                else:
+                    return {"success": False, "message": f"API返回错误 {resp.status_code}: {resp.text[:200]}"}
+        else:
+            url = base_url or AI_PROVIDERS.get(provider, {}).get("base_url", "")
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.post(
+                    url,
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": model,
+                        "max_tokens": 10,
+                        "messages": [{"role": "user", "content": "Hi"}],
+                    },
+                )
+                if resp.status_code == 200:
+                    return {"success": True, "message": f"连接成功 ({provider}: {model})"}
+                else:
+                    return {"success": False, "message": f"API返回错误 {resp.status_code}: {resp.text[:200]}"}
+    except httpx.TimeoutException:
+        return {"success": False, "message": "连接超时（15秒），请检查网络或API地址"}
+    except Exception as e:
+        return {"success": False, "message": f"连接失败: {str(e)[:200]}"}
+
+
 # ========== 图片识别 API ==========
 
 SUPPORTED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp", "image/bmp"}

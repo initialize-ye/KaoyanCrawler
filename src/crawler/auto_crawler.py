@@ -181,15 +181,17 @@ class AutoCrawler:
 
             # 并发处理当前层（受 Semaphore 控制）
             semaphore = asyncio.Semaphore(MAX_CONCURRENT)
+            page_lock = asyncio.Lock()
 
             async def process_task(task: CrawlTask):
                 nonlocal page_count
-                if page_count >= MAX_TOTAL_PAGES:
-                    return None
-                if task.url in visited:
-                    return None
-                visited.add(task.url)
-                page_count += 1
+                async with page_lock:
+                    if page_count >= MAX_TOTAL_PAGES:
+                        return None
+                    if task.url in visited:
+                        return None
+                    visited.add(task.url)
+                    page_count += 1
 
                 page_data = await self._fetch_page(task.url)
                 if not page_data:
