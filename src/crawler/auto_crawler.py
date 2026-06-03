@@ -123,6 +123,23 @@ class AutoCrawler:
     def __init__(self, ai_extractor: AIExtractor | None = None):
         self.ai = ai_extractor
         self.crawl_mode = "admission"  # "admission" or "catalog"
+        self._client: httpx.AsyncClient | None = None
+
+    async def _get_client(self) -> httpx.AsyncClient:
+        """获取共享的httpx客户端（复用连接）。"""
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(
+                timeout=20.0,
+                follow_redirects=True,
+                limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
+            )
+        return self._client
+
+    async def _close_client(self):
+        """关闭httpx客户端。"""
+        if self._client and not self._client.is_closed:
+            await self._client.aclose()
+            self._client = None
 
     async def crawl(self, university: str, year: int = 2025, major: str = "", mode: str = "admission"):
         """一键采集：async generator，逐步 yield 进度事件。
@@ -349,6 +366,7 @@ class AutoCrawler:
         results = unique_results
 
         # ── 汇总 ──
+        await self._close_client()
         yield _result_event(len(results) > 0, university, year, results, errors)
 
     # ── 页面获取 ──
@@ -356,49 +374,49 @@ class AutoCrawler:
     async def _fetch_page(self, url: str) -> dict | None:
         """获取页面内容，返回 {html, title, is_pdf, blocked} 或 None。"""
         headers = _get_headers()
+        client = await self._get_client()
         for attempt in range(3):
             try:
-                async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
-                    resp = await client.get(url, headers=headers)
-                    content_type = resp.headers.get("content-type", "")
+                resp = await client.get(url, headers=headers)
+                content_type = resp.headers.get("content-type", "")
 
-                    # 429/503 等待重试
-                    if resp.status_code in (429, 503):
-                        wait = 2 ** attempt + random.uniform(0, 1)
-                        logger.warning(f"HTTP {resp.status_code} for {url}, retry in {wait:.1f}s")
-                        await asyncio.sleep(wait)
-                        headers = _get_headers()
-                        continue
+                # 429/503 等待重试
+                if resp.status_code in (429, 503):
+                    wait = 2 ** attempt + random.uniform(0, 1)
+                    logger.warning(f"HTTP {resp.status_code} for {url}, retry in {wait:.1f}s")
+                    await asyncio.sleep(wait)
+                    headers = _get_headers()
+                    continue
 
-                    resp.raise_for_status()
+                resp.raise_for_status()
 
-                    if "pdf" in content_type:
-                        return {"html": "", "title": url, "is_pdf": True}
+                if "pdf" in content_type:
+                    return {"html": "", "title": url, "is_pdf": True}
 
-                    text = resp.text
-                    final_url = str(resp.url)
+                text = resp.text
+                final_url = str(resp.url)
 
-                    # 登录/验证码检测
-                    if _LOGIN_PATTERNS.search(text[:5000]) or any(
-                        seg in final_url.lower() for seg in _LOGIN_URL_SEGMENTS
-                    ):
-                        logger.warning(f"检测到登录/验证码页面: {url} -> {final_url}")
-                        return {"html": text, "title": "", "blocked": True}
+                # 登录/验证码检测
+                if _LOGIN_PATTERNS.search(text[:5000]) or any(
+                    seg in final_url.lower() for seg in _LOGIN_URL_SEGMENTS
+                ):
+                    logger.warning(f"检测到登录/验证码页面: {url} -> {final_url}")
+                    return {"html": text, "title": "", "blocked": True}
 
-                    # JS渲染检测
-                    body_stripped = re.sub(r"<script[^>]*>.*?</script>", "", text, flags=re.S)
-                    body_stripped = re.sub(r"<style[^>]*>.*?</style>", "", body_stripped, flags=re.S)
-                    text_content = re.sub(r"<[^>]+>", "", body_stripped).strip()
-                    if len(text_content) < 100 and any(m in text for m in _JS_RENDER_MARKERS):
-                        logger.warning(f"疑似JS渲染页面，文本极少: {url}")
-                        return {"html": text, "title": "", "blocked": True}
+                # JS渲染检测
+                body_stripped = re.sub(r"<script[^>]*>.*?</script>", "", text, flags=re.S)
+                body_stripped = re.sub(r"<style[^>]*>.*?</style>", "", body_stripped, flags=re.S)
+                text_content = re.sub(r"<[^>]+>", "", body_stripped).strip()
+                if len(text_content) < 100 and any(m in text for m in _JS_RENDER_MARKERS):
+                    logger.warning(f"疑似JS渲染页面，文本极少: {url}")
+                    return {"html": text, "title": "", "blocked": True}
 
-                    tree = HTMLParser(text)
-                    title_el = tree.css_first("title")
-                    return {
-                        "html": text,
-                        "title": title_el.text(strip=True) if title_el else url,
-                    }
+                tree = HTMLParser(text)
+                title_el = tree.css_first("title")
+                return {
+                    "html": text,
+                    "title": title_el.text(strip=True) if title_el else url,
+                }
             except httpx.HTTPStatusError as e:
                 if e.response.status_code in (429, 503) and attempt < 2:
                     wait = 2 ** attempt + random.uniform(0, 1)
@@ -634,12 +652,13 @@ class AutoCrawler:
             f"https://yjsc.{short}.edu.cn",
         ]
 
+        client = await self._get_client()
+
         async def _check_url(url: str) -> str | None:
             try:
-                async with httpx.AsyncClient(timeout=5.0, follow_redirects=True) as client:
-                    resp = await client.get(url, headers=_get_headers())
-                    if resp.status_code < 400:
-                        return url
+                resp = await client.get(url, headers=_get_headers(), timeout=5.0)
+                if resp.status_code < 400:
+                    return url
             except Exception:
                 pass
             return None

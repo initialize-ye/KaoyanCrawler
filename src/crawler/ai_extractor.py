@@ -312,23 +312,21 @@ class AIExtractor:
             result["reason"] = "未能识别文件标题"
         return result
 
-    async def navigate_page(self, url: str, title: str, links: list[dict[str, str]], major: str = "") -> dict[str, Any]:
-        """用AI分析页面结构，决定下一步操作（提取/跟进/跳过）。"""
-        # 按相关性排序链接
-        nav_keywords = ["招生", "学院", "复试", "录取", "拟录取", "名单", "硕士", "研究生", "公示", "通知"]
+    async def _navigate(self, url: str, title: str, links: list[dict[str, str]],
+                        major: str, keywords: list[str], prompt_template: str) -> dict[str, Any]:
+        """通用导航方法：按关键词排序链接，调用LLM决策。"""
         if major:
-            nav_keywords.append(major)
+            keywords = keywords + [major]
 
         def relevance(link):
             t = link.get("text", "")
-            score = sum(1 for kw in nav_keywords if kw in t)
+            score = sum(1 for kw in keywords if kw in t)
             if len(t) > 50:
                 score -= 1
             return -score
 
         sorted_links = sorted(links, key=relevance)
 
-        # 构建链接列表文本，截断到5000字符
         lines = []
         total = 0
         for link in sorted_links:
@@ -341,17 +339,14 @@ class AIExtractor:
             total += len(line)
 
         link_list = "\n".join(lines) if lines else "(无链接)"
-
         major_context = f"用户目标专业: {major}" if major else ""
-        prompt = NAVIGATION_PROMPT.format(url=url, title=title, link_list=link_list, major_context=major_context)
+        prompt = prompt_template.format(url=url, title=title, link_list=link_list, major_context=major_context)
         result = await self._call_llm(prompt, max_tokens=1024)
 
-        # 校验返回结构
         action = result.get("action", "skip")
         if action not in ("extract", "follow", "skip"):
             result["action"] = "skip"
         if action == "follow":
-            # 过滤掉缺少url的链接
             valid_links = [lnk for lnk in result.get("links", []) if lnk.get("url")]
             if not valid_links:
                 result["action"] = "skip"
@@ -360,51 +355,16 @@ class AIExtractor:
                 result["links"] = valid_links
 
         return result
+
+    async def navigate_page(self, url: str, title: str, links: list[dict[str, str]], major: str = "") -> dict[str, Any]:
+        """用AI分析页面结构，决定下一步操作（提取/跟进/跳过）。"""
+        keywords = ["招生", "学院", "复试", "录取", "拟录取", "名单", "硕士", "研究生", "公示", "通知"]
+        return await self._navigate(url, title, links, major, keywords, NAVIGATION_PROMPT)
 
     async def navigate_for_catalog(self, url: str, title: str, links: list[dict[str, str]], major: str = "") -> dict[str, Any]:
         """用AI分析页面结构，寻找招生专业目录。"""
-        nav_keywords = ["专业目录", "招生目录", "考试科目", "招生简章", "招生专业", "硕士招生", "研究生招生", "目录"]
-        if major:
-            nav_keywords.append(major)
-
-        def relevance(link):
-            t = link.get("text", "")
-            score = sum(1 for kw in nav_keywords if kw in t)
-            if len(t) > 50:
-                score -= 1
-            return -score
-
-        sorted_links = sorted(links, key=relevance)
-
-        lines = []
-        total = 0
-        for link in sorted_links:
-            text = link.get("text", "")[:80]
-            href = link.get("href", "")
-            line = f"- {text} → {href}"
-            if total + len(line) > 5000:
-                break
-            lines.append(line)
-            total += len(line)
-
-        link_list = "\n".join(lines) if lines else "(无链接)"
-
-        major_context = f"用户目标专业: {major}" if major else ""
-        prompt = CATALOG_NAVIGATION_PROMPT.format(url=url, title=title, link_list=link_list, major_context=major_context)
-        result = await self._call_llm(prompt, max_tokens=1024)
-
-        action = result.get("action", "skip")
-        if action not in ("extract", "follow", "skip"):
-            result["action"] = "skip"
-        if action == "follow":
-            valid_links = [lnk for lnk in result.get("links", []) if lnk.get("url")]
-            if not valid_links:
-                result["action"] = "skip"
-                result["reason"] = result.get("reason", "") + " (未返回有效链接)"
-            else:
-                result["links"] = valid_links
-
-        return result
+        keywords = ["专业目录", "招生目录", "考试科目", "招生简章", "招生专业", "硕士招生", "研究生招生", "目录"]
+        return await self._navigate(url, title, links, major, keywords, CATALOG_NAVIGATION_PROMPT)
 
     async def infer_dept_urls(self, university: str, visited_titles: list[str], major: str = "") -> list[dict[str, str]]:
         """根据学校名和已访问页面，推断可能发布录取名单的学院官网URL。"""
