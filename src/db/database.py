@@ -355,6 +355,24 @@ class Database:
                 "universities": uni_count,
             }
 
+    async def query_universities(self) -> list[str]:
+        """获取所有有数据的学校名称列表。"""
+        async with aiosqlite.connect(self.db_path) as db:
+            sql = """
+                SELECT DISTINCT university FROM (
+                    SELECT DISTINCT university FROM admission_records
+                    UNION
+                    SELECT DISTINCT university FROM exam_subjects
+                    UNION
+                    SELECT DISTINCT university FROM retest_rules
+                    UNION
+                    SELECT DISTINCT university FROM score_lines
+                ) ORDER BY university
+            """
+            async with db.execute(sql) as cursor:
+                rows = await cursor.fetchall()
+                return [row[0] for row in rows]
+
     async def insert_retest_rules(self, rules: list[RetestRule]):
         """批量插入复试细则，冲突时更新。"""
         async with aiosqlite.connect(self.db_path) as db:

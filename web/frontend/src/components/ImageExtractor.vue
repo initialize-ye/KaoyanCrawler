@@ -1018,5 +1018,31 @@ defineExpose({ open })
   .result-toolbar__right .el-button { flex: 1; }
   .preview-grid { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); }
   .preview-item img { height: 70px; }
+
+  .mode-select {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .mode-select .el-radio-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .editable-table {
+    font-size: 12px;
+  }
+
+  .editable-table th,
+  .editable-table td {
+    padding: 6px 4px;
+  }
+
+  .table-scroll {
+    margin: 0 -16px;
+    padding: 0 16px;
+  }
 }
 </style>

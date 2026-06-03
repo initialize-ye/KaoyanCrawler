@@ -7,7 +7,6 @@ from pathlib import Path
 import json
 import re
 
-import aiosqlite
 import httpx
 import yaml
 from fastapi import FastAPI, Query, UploadFile, File
@@ -397,20 +396,7 @@ async def update_subject(subject_id: int, data: UpdateSubjectRequest):
 async def get_universities():
     """获取已采集的学校列表（从所有表中查询）。"""
     db = get_db()
-    async with aiosqlite.connect(db.db_path) as conn:
-        cursor = await conn.execute("""
-            SELECT DISTINCT university FROM (
-                SELECT university FROM admission_records
-                UNION
-                SELECT university FROM exam_subjects
-                UNION
-                SELECT university FROM retest_rules
-                UNION
-                SELECT university FROM score_lines
-            ) ORDER BY university
-        """)
-        rows = await cursor.fetchall()
-        universities = [r[0] for r in rows]
+    universities = await db.query_universities()
     return {"universities": universities}
 
 
@@ -2088,11 +2074,12 @@ async def extract_image(
         )
 
         # 流式返回进度
-        while not task.done():
+        while not task.done() or not progress_queue.empty():
             while not progress_queue.empty():
                 event = progress_queue.get_nowait()
                 yield f"event: progress\ndata: {json.dumps(event, ensure_ascii=False)}\n\n"
-            await asyncio.sleep(0.1)
+            if not task.done():
+                await asyncio.sleep(0.1)
 
         # 获取最终结果（捕获异常避免SSE流中断）
         try:

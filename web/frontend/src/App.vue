@@ -32,6 +32,9 @@
         </div>
 
         <div class="google-header__right">
+          <button class="google-header__btn mobile-search-btn" @click="showMobileSearch = true">
+            <span class="material-icons">search</span>
+          </button>
           <button class="google-header__btn" @click="imageExtractor?.open()" data-tooltip="图片识别">
             <span class="material-icons-outlined">document_scanner</span>
           </button>
@@ -45,6 +48,24 @@
         </div>
       </div>
     </header>
+
+    <!-- Mobile Search Overlay -->
+    <div v-if="showMobileSearch" class="mobile-search-overlay" @click.self="showMobileSearch = false">
+      <div class="mobile-search-bar">
+        <span class="material-icons mobile-search-bar__icon">search</span>
+        <input
+          ref="mobileSearchInput"
+          v-model="searchQuery"
+          type="text"
+          class="mobile-search-bar__input"
+          placeholder="搜索学校名称..."
+          @keyup.enter="handleMobileSearch"
+        />
+        <button class="mobile-search-bar__close" @click="showMobileSearch = false">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+    </div>
 
     <!-- Main Content -->
     <main class="google-main">
@@ -115,6 +136,8 @@ const imageExtractor = ref(null)
 const settingsDialog = ref(null)
 
 const searchQuery = ref('')
+const showMobileSearch = ref(false)
+const mobileSearchInput = ref(null)
 const selectedSchool = ref(null)
 const schoolList = ref([])
 const schoolsLoading = ref(false)
@@ -161,6 +184,13 @@ const deleteSchool = async (schoolName) => {
 const handleSearch = () => {
   if (searchQuery.value.trim()) {
     selectSchool(searchQuery.value.trim())
+  }
+}
+
+const handleMobileSearch = () => {
+  if (searchQuery.value.trim()) {
+    selectSchool(searchQuery.value.trim())
+    showMobileSearch.value = false
   }
 }
 
@@ -443,6 +473,63 @@ onMounted(() => {
   color: var(--google-text-tertiary);
 }
 
+/* ── Mobile Search ── */
+.mobile-search-btn {
+  display: none;
+}
+
+.mobile-search-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 2000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 20px;
+  animation: google-fade-in 0.2s ease-out;
+}
+
+.mobile-search-bar {
+  display: flex;
+  align-items: center;
+  background: var(--google-surface);
+  border-radius: var(--google-radius-full);
+  padding: 0 var(--google-space-4);
+  width: calc(100% - 32px);
+  max-width: 600px;
+  height: 48px;
+  box-shadow: var(--google-elevation-3);
+}
+
+.mobile-search-bar__icon {
+  color: var(--google-text-tertiary);
+  font-size: 22px;
+  margin-right: var(--google-space-3);
+}
+
+.mobile-search-bar__input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 16px;
+  color: var(--google-text-primary);
+  outline: none;
+}
+
+.mobile-search-bar__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  color: var(--google-text-secondary);
+  border-radius: var(--google-radius-full);
+  cursor: pointer;
+}
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
   .google-header {
@@ -451,6 +538,10 @@ onMounted(() => {
 
   .google-header__center {
     display: none;
+  }
+
+  .mobile-search-btn {
+    display: flex;
   }
 
   .google-header__title-group {

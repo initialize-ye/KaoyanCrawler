@@ -96,11 +96,20 @@ OCR 文本：
 class OCREngine:
     """OCR 引擎，支持多轮预处理 + 多引擎交叉验证。"""
 
+    # 模块级单例，避免重复初始化（EasyOCR初始化耗时10-30秒）
+    _shared_instance = None
+
+    def __new__(cls):
+        if cls._shared_instance is None:
+            cls._shared_instance = super().__new__(cls)
+            cls._shared_instance._rapid = None
+            cls._shared_instance._easyocr = None
+            cls._shared_instance._rapid_ok = False
+            cls._shared_instance._easyocr_ok = False
+        return cls._shared_instance
+
     def __init__(self):
-        self._rapid = None
-        self._easyocr = None
-        self._rapid_ok = False
-        self._easyocr_ok = False
+        pass  # 初始化在 __new__ 中完成
 
     def _init_rapid(self):
         if self._rapid is not None:
