@@ -48,7 +48,7 @@
         <div class="section-header__left">
           <span class="material-icons-outlined section-header__icon">analytics</span>
           <h3 class="section-header__title">录取信息</h3>
-          <span class="count-badge">{{ subjects.length }}</span>
+          <span class="count-badge">{{ subjects.length }}{{ subjectsTotal > subjects.length ? '/' + subjectsTotal : '' }}</span>
         </div>
       </div>
       <div class="table-wrap">
@@ -98,6 +98,12 @@
           </tbody>
         </table>
       </div>
+      <div v-if="subjects.length < subjectsTotal" class="load-more">
+        <button class="load-more-btn" @click="loadMore('subjects')">
+          <span class="material-icons">expand_more</span>
+          加载更多 ({{ subjectsTotal - subjects.length }} 条)
+        </button>
+      </div>
     </div>
 
     <!-- 录取数据 -->
@@ -106,7 +112,7 @@
         <div class="section-header__left">
           <span class="material-icons-outlined section-header__icon">people</span>
           <h3 class="section-header__title">录取数据</h3>
-          <span class="count-badge">{{ admissions.length }}</span>
+          <span class="count-badge">{{ admissions.length }}{{ admissionsTotal > admissions.length ? '/' + admissionsTotal : '' }}</span>
         </div>
       </div>
       <div class="table-wrap">
@@ -147,6 +153,12 @@
           </tbody>
         </table>
       </div>
+      <div v-if="admissions.length < admissionsTotal" class="load-more">
+        <button class="load-more-btn" @click="loadMore('admissions')">
+          <span class="material-icons">expand_more</span>
+          加载更多 ({{ admissionsTotal - admissions.length }} 条)
+        </button>
+      </div>
     </div>
 
     <!-- 复试细则 -->
@@ -155,7 +167,7 @@
         <div class="section-header__left">
           <span class="material-icons-outlined section-header__icon">description</span>
           <h3 class="section-header__title">复试细则</h3>
-          <span class="count-badge">{{ rules.length }}</span>
+          <span class="count-badge">{{ rules.length }}{{ rulesTotal > rules.length ? '/' + rulesTotal : '' }}</span>
         </div>
       </div>
       <div class="rules-grid">
@@ -192,6 +204,12 @@
           </div>
         </div>
       </div>
+      <div v-if="rules.length < rulesTotal" class="load-more">
+        <button class="load-more-btn" @click="loadMore('rules')">
+          <span class="material-icons">expand_more</span>
+          加载更多 ({{ rulesTotal - rules.length }} 条)
+        </button>
+      </div>
     </div>
 
     <!-- 分数线 -->
@@ -200,7 +218,7 @@
         <div class="section-header__left">
           <span class="material-icons-outlined section-header__icon">trending_up</span>
           <h3 class="section-header__title">分数线</h3>
-          <span class="count-badge">{{ scoreLines.length }}</span>
+          <span class="count-badge">{{ scoreLines.length }}{{ scoreLinesTotal > scoreLines.length ? '/' + scoreLinesTotal : '' }}</span>
         </div>
       </div>
       <div class="table-wrap">
@@ -233,6 +251,12 @@
           </tbody>
         </table>
       </div>
+      <div v-if="scoreLines.length < scoreLinesTotal" class="load-more">
+        <button class="load-more-btn" @click="loadMore('scoreLines')">
+          <span class="material-icons">expand_more</span>
+          加载更多 ({{ scoreLinesTotal - scoreLines.length }} 条)
+        </button>
+      </div>
     </div>
 
     <!-- 无数据提示 -->
@@ -261,6 +285,13 @@ const admissions = ref([])
 const rules = ref([])
 const scoreLines = ref([])
 
+const subjectsTotal = ref(0)
+const admissionsTotal = ref(0)
+const rulesTotal = ref(0)
+const scoreLinesTotal = ref(0)
+
+const PAGE_SIZE = 100
+
 const fetchData = async () => {
   if (!props.schoolName) return
 
@@ -269,20 +300,38 @@ const fetchData = async () => {
     schoolInfo.value = schoolResp.data
 
     const [subjResp, admResp, rulesResp, slResp] = await Promise.all([
-      axios.get('/api/subjects', { params: { university: props.schoolName, page_size: 200 } }),
-      axios.get('/api/admissions', { params: { university: props.schoolName, page_size: 200 } }),
-      axios.get('/api/retest-rules', { params: { university: props.schoolName, page_size: 200 } }),
-      axios.get('/api/score-lines', { params: { university: props.schoolName, page_size: 200 } }),
+      axios.get('/api/subjects', { params: { university: props.schoolName, page_size: PAGE_SIZE } }),
+      axios.get('/api/admissions', { params: { university: props.schoolName, page_size: PAGE_SIZE } }),
+      axios.get('/api/retest-rules', { params: { university: props.schoolName, page_size: PAGE_SIZE } }),
+      axios.get('/api/score-lines', { params: { university: props.schoolName, page_size: PAGE_SIZE } }),
     ])
 
     subjects.value = subjResp.data.data || []
     admissions.value = admResp.data.data || []
     rules.value = rulesResp.data.data || []
     scoreLines.value = slResp.data.data || []
+
+    subjectsTotal.value = subjResp.data.total || 0
+    admissionsTotal.value = admResp.data.total || 0
+    rulesTotal.value = rulesResp.data.total || 0
+    scoreLinesTotal.value = slResp.data.total || 0
   } catch (e) {
     const errDetail = e.response?.data?.detail
     const errMsg = typeof errDetail === 'string' ? errDetail : e.message || '未知错误'
     ElMessage.error('获取学校数据失败: ' + errMsg)
+  }
+}
+
+const loadMore = async (type) => {
+  const current = type === 'subjects' ? subjects : type === 'admissions' ? admissions : type === 'rules' ? rules : scoreLines
+  const page = Math.ceil(current.value.length / PAGE_SIZE) + 1
+  try {
+    const { data } = await axios.get(`/api/${type === 'rules' ? 'retest-rules' : type === 'scoreLines' ? 'score-lines' : type}`, {
+      params: { university: props.schoolName, page, page_size: PAGE_SIZE },
+    })
+    current.value.push(...(data.data || []))
+  } catch (e) {
+    ElMessage.error('加载更多失败')
   }
 }
 
@@ -606,6 +655,38 @@ onMounted(fetchData)
 
 .muted {
   color: var(--google-text-tertiary);
+}
+
+/* ── Load More ── */
+.load-more {
+  padding: var(--google-space-3) var(--google-space-6);
+  border-top: 1px solid var(--google-gray-100);
+  text-align: center;
+}
+
+.load-more-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--google-space-1);
+  padding: 8px 24px;
+  border: 1px solid var(--google-gray-300);
+  background: var(--google-surface);
+  color: var(--google-blue);
+  font-family: var(--google-font);
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: var(--google-radius-full);
+  cursor: pointer;
+  transition: all var(--google-transition-fast);
+}
+
+.load-more-btn:hover {
+  background: var(--google-blue-bg);
+  border-color: var(--google-blue);
+}
+
+.load-more-btn .material-icons {
+  font-size: 18px;
 }
 
 /* ── Status Tags ── */
